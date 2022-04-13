@@ -1,0 +1,23 @@
+#generate counts table for SP,DN,DP and Plasmid 5k control
+#5ksgRNA_library.txt from the Excel 5k cellecta order sheet (col1 = guideID, col2 = sequence, col3 = gene target
+#NTG_list_IDs.txt has list of Non targeting guide IDs from Cellecta order sheet
+mageck count -l 5ksgRNA_library.txt -n Comparison_to_5k_plasmid --sample-label BeadSP,BeadDN,BeadDP,CcSP,CcDN,CcDP,Plasmid5kCTRL --control-sgrna NTG_list_IDs.txt --fastq 3-Bd-SP_S1_L001_R2_001.fastq.gz 6-Bd-DN_S2_L001_R2_001.fastq.gz 10-Bd-DP_S3_L001_R2_001.fastq.gz 13-Cc-SP_S4_L001_R2_001.fastq.gz 22-Cc-DN_S6_L001_R2_001.fastq.gz 14-Cc-DP_S5_L001_R2_001.fastq.gz 23-Plasmid-5k_S7_L001_R2_001.fastq.gz
+
+
+#run Mageck test for BeadSP samples vs plasmid 5k control from counts tables from above
+mageck test -k Comparison_to_5k_plasmid.count.txt -t BeadSP -c Plasmid5kCTRL -n Comparison_BeadSP_to_5k_plasmid_output
+
+#run Mageck test for BeadDN samples vs plasmid 5k control from counts tables from above
+mageck test -k Comparison_to_5k_plasmid.count.txt -t BeadDN -c Plasmid5kCTRL -n Comparison_BeadDN_to_5k_plasmid_output
+
+#run Mageck test for Bead DP samples vs plasmid 5k control from counts tables from above
+mageck test -k Comparison_to_5k_plasmid.count.txt -t BeadDP -c Plasmid5kCTRL -n Comparison_BeadDP_to_5k_plasmid_output
+
+#run Mageck test for Cc SP samples vs plasmid 5k control from counts tables from above
+mageck test -k Comparison_to_5k_plasmid.count.txt -t CcSP -c Plasmid5kCTRL -n Comparison_CcSP_to_5k_plasmid_output
+
+#run Mageck test for Cc DN samples vs plasmid 5k control from counts tables from above
+mageck test -k Comparison_to_5k_plasmid.count.txt -t CcDN -c Plasmid5kCTRL -n Comparison_CcDN_to_5k_plasmid_output
+
+#run Mageck test for Cc DP samples vs plasmid 5k control from counts tables from above
+mageck test -k Comparison_to_5k_plasmid.count.txt -t CcDP -c Plasmid5kCTRL -n Comparison_CcDP_to_5k_plasmid_output

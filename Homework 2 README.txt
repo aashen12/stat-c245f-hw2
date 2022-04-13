@@ -1,14 +1,16 @@
-# Homework 2 / Final Project
+Homework 2 can function as a final project if you wish. However, if you do choose to make
+it a final project, obviously more detail is expected. 
 
-## STAT C245F
+Homework 2 consists of analyzing the output of the MAGECK algorithm as run on the CRISPR
+Screening data from David Nguyen's lab. 
 
-Homework 2 can function as a final project if you wish. However, if you do choose to make it a final project, obviously more detail is expected. 
+The MAGECK paper is here:
 
-Homework 2 consists of analyzing the output of the MAGECK algorithm as run on the CRISPR Screening data from David Nguyen's lab. 
+https://genomebiology.biomedcentral.com/articles/10.1186/s13059-014-0554-4
 
-The MAGECK paper is here: https://genomebiology.biomedcentral.com/articles/10.1186/s13059-014-0554-4
+and the code is here:
 
-and the code is here: https://sourceforge.net/p/mageck/wiki/Home/
+https://sourceforge.net/p/mageck/wiki/Home/
 
 Please have a careful read of the paper, and review David's lecture for details on the
 data. 
