@@ -1,0 +1,74 @@
+---
+title: "Report Title"
+subtitle: "Final Project: Statistics C245F"
+author: "Florica Constantine, Lingrong Jin, Andy Shen"
+header-includes:
+   - \usepackage{float}
+   - \usepackage{bbm}
+output: 
+  pdf_document:
+    number_sections: true
+bibliography: bibliography.bib
+---
+
+```{r setup, include=FALSE}
+rm(list = ls())
+library(tidyverse)
+library(GGally)
+library(cvms)
+library(ggpubr)
+library(kableExtra)
+library(knitr)
+knitr::opts_chunk$set(
+  echo = FALSE,  # don't print the code chunk
+  warning = FALSE,  # don't print warnings
+  message = FALSE,  # don't print messages
+  fig.width = 6,  # set default width of figures
+  fig.height = 4,  # set default height of figures
+  fig.align = "center",  # always align figure in center
+  fig.pos = "H",  # always plot figure at the exact location of the code chunk
+  cache = FALSE,
+  dev = "jpeg") 
+setwd("/Users/andyshen/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Desktop - Andy’s MacBook Pro/UC Berkeley/spring-2022/stat-c245f/stat-c245f-hw2")
+```
+
+\newcommand{\blue}{\textcolor{blue}}
+\newcommand{\red}{\textcolor{red}}
+\newcommand{\bb}{\textbf}
+
+
+```{r,eval=FALSE}
+dir <- "Count_output/"
+main <- read.table(paste0(dir, "Comparison_to_5k_plasmid.count_normalized.txt"), header = TRUE)
+summ <- read.table(paste0(dir, "Comparison_to_5k_plasmid.countsummary.txt"), header = TRUE)
+```
+
+# Introduction
+
+The discovery of the Cas9 clustered regularly interspaced short palindromic repeats (CRISPR) enzyme has revolutionized the world of genomics and bioinformatics. The ability to perform genome editing and cleaving opens the door to an endless array of biological research that explores the effect of Cas9. 
+
+One method is the Model-based Analysis of Genome-wide CRISPR/Cas9 Knockout (MAGeCK) proposed by @li2014mageck. This technique utilizes the unique ability of Cas9 by identifying both positively and negatively-regulated genes in a robust and powerful manner. Here we utilize the output of MAGeCK on a CRISPR assay for children with Severe combined immunodeficiency (SCID). This rare disorder directly inhibits T-cells from being created, significantly altering a child's immune system. Such a disorder is typically fatal^[https://www.niaid.nih.gov/diseases-conditions/severe-combined-immunodeficiency-scid].
+
+However, the advent of CRISPR assay sequencing technologies enables domain experts to investigate the genomic origins of SCID and discover genes that play a role in immune system development. In this process, a guide RNA (sgRNA) enters the genome with he intention to target a gene. A dissipating guide indicates that the sgRNA, and hence its target gene, was important for the specific cell-line. These discoveries point out the potential usefulness of certain genes in T-cell differentiation.
+
+# Data Organization
+
+Our data is presented as a series of counts per gene. These counts correspond to the number of cells observed per gene. These cells have markers which indicate the presence of T-cells. A double-negative count indicates the presence of a cell with no T-cell markers. A single-positive count indicates one T-cell marker, while a double-positive count indicates the presence of two T-cell markers, the clearest evidence of T-cell detection. 
+
+While each sgRNA has a fixed efficiency, we are not provided that information, so this analysis assumes that the efficiency is fixed across all sgRNAs.
+
+
+
+# References
+
+
+
+
+
+
+
+
+
+
+
+
