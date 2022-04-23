@@ -1,0 +1,102 @@
+---
+title: "hw2"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+install.packages("corrplot")
+install.packages("formattable")
+library(formattable)
+library(tidyverse)
+library(corrplot)
+```
+
+# comparison of gene ranking using bead vs cc
+# load data
+```{r}
+dir <- getwd()
+bead_genes_DP <- read.table(paste0(dir,"/Test_outputs/Bead_DP_v_plasmid5k/Comparison_BeadDP_to_5k_plasmid_output.gene_summary.txt"), header = T)
+cc_genes_DP <- read.table(paste0(dir,"/Test_outputs/Cc_DP_v_plasmid5k/Comparison_CcDP_to_5k_plasmid_output.gene_summary.txt"), header = T)
+
+bead_genes_SP <- read.table(paste0(dir,"/Test_outputs/Bead_SP_v_plasmid5k/Comparison_BeadSP_to_5k_plasmid_output.gene_summary.txt"), header = T)
+cc_genes_SP <- read.table(paste0(dir,"/Test_outputs/Cc_SP_v_plasmid5k/Comparison_CcSP_to_5k_plasmid_output.gene_summary.txt"), header = T)
+
+bead_genes_DN <- read.table(paste0(dir,"/Test_outputs/Bead_DN_v_plasmid5k/Comparison_BeadDN_to_5k_plasmid_output.gene_summary.txt"), header = T)
+cc_genes_DN <- read.table(paste0(dir,"/Test_outputs/Cc_DN_v_plasmid5k/Comparison_CcDN_to_5k_plasmid_output.gene_summary.txt"), header = T)
+```
+
+# top 20 genes from the two methods
+```{r}
+#ovelap for DP
+bead_genes_DP <- bead_genes_DP %>% arrange(neg.rank)  
+cc_genes_DP <- cc_genes_DP %>% arrange(neg.rank) 
+bead_neg_top20_DP <- bead_genes_DP$id[1:20]
+cc_neg_top20_DP <- cc_genes_DP$id[1:20]
+DP_common_neg <- intersect(bead_neg_top20_DP,cc_neg_top20_DP)
+
+bead_genes_DP <- bead_genes_DP %>% arrange(pos.rank)  
+cc_genes_DP <- cc_genes_DP %>% arrange(pos.rank) 
+bead_pos_top20_DP <- bead_genes_DP$id[1:20]
+cc_pos_top20_DP <- cc_genes_DP$id[1:20]
+DP_common_pos <- intersect(bead_pos_top20_DP,cc_pos_top20_DP)
+
+#ovelap for SP
+bead_genes_SP <- bead_genes_SP %>% arrange(neg.rank)  
+cc_genes_SP <- cc_genes_SP %>% arrange(neg.rank) 
+bead_neg_top20_SP <- bead_genes_SP$id[1:20]
+cc_neg_top20_SP <- cc_genes_SP$id[1:20]
+SP_common_neg <- intersect(bead_neg_top20_SP,cc_neg_top20_SP)
+
+bead_genes_SP <- bead_genes_SP %>% arrange(pos.rank)  
+cc_genes_SP <- cc_genes_SP %>% arrange(pos.rank) 
+bead_pos_top20_SP <- bead_genes_SP$id[1:20]
+cc_pos_top20_SP <- cc_genes_SP$id[1:20]
+SP_common_pos <- intersect(bead_pos_top20_SP,cc_pos_top20_SP)
+
+#ovelap for DN
+bead_genes_DN <- bead_genes_DN %>% arrange(neg.rank)  
+cc_genes_DN <- cc_genes_DN %>% arrange(neg.rank) 
+bead_neg_top20_DN <- bead_genes_DN$id[1:20]
+cc_neg_top20_DN <- cc_genes_DN$id[1:20]
+DN_common_neg <- intersect(bead_neg_top20_DN,cc_neg_top20_DN)
+
+bead_genes_DN <- bead_genes_DN %>% arrange(pos.rank)  
+cc_genes_DN <- cc_genes_DN %>% arrange(pos.rank) 
+bead_pos_top20_DN <- bead_genes_DN$id[1:20]
+cc_pos_top20_DN <- cc_genes_DN$id[1:20]
+DN_common_pos <- intersect(bead_pos_top20_DN,cc_pos_top20_DN)
+```
+
+# top genes in common
+```{r}
+outcome_type <- c("DP","SP", "DN")
+selection <- rep(c("neg","pos"),3)
+common_gene <- c(paste(DP_common_neg, collapse = ","),DP_common_pos,SP_common_neg,"N/A",DN_common_neg,DN_common_pos)
+
+df <- data.frame(outcome_type, selection, common_gene) # very few overlaps of the top genes predicted by the two methods
+formattable(df)
+```
+
+#EDA
+#correlation matrix
+```{r}
+count_output <- read.table(paste0(dir,"/Count_output/Comparison_to_5k_plasmid.count.txt"), header = T)
+
+# nrow(count_output)/length(unique(count_output$Gene)) # on average ~3.7 sgRNA per gene
+
+count_matrix <- count_output[,3:9]
+
+cor <-cor(count_matrix)
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+corrplot(cor, type = "upper", method = "number")
+```
+
+#scatterplot
+```{r}
+pairs(count_matrix, pch = 10, lower.panel = NULL)
+```
