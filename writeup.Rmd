@@ -1,5 +1,5 @@
 ---
-title: "Report Title"
+title: "CRISPR"
 subtitle: "Final Project: Statistics C245F"
 author: "Florica Constantine, Lingrong Jin, Andy Shen"
 header-includes:
