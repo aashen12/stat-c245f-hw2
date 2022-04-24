@@ -8,8 +8,8 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 ```{r}
-install.packages("corrplot")
-install.packages("formattable")
+# install.packages("corrplot")
+# install.packages("formattable")
 library(formattable)
 library(tidyverse)
 library(corrplot)

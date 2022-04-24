@@ -1,14 +1,17 @@
 ---
 title: "MAGeCK Comparison Report"
-output: html_notebook
+output:
+  html_document:
+    df_print: paged
 ---
 
+```{=html}
 <!-- 
 
 This is a template file for R markdown used in MAGeCK 
  
 -->
-
+```
 Author: Wei Li, weililab.org
 
 *Note* This R markdown file provides a simple and convenient web report for the MAGeCK results. For experienced users, [MAGeCKFlute R package](https://bioconductor.org/packages/release/bioc/html/MAGeCKFlute.html) is recommended as it provides additional visualization functionalities.
@@ -17,10 +20,9 @@ Author: Wei Li, weililab.org
 
 comparison_name is the prefix of your output file, defined by the "-n" parameter in your "mageck test" command. The system will look for the following files to generate this report:
 
-* comparison_name.sgrna_summary.txt
-* comparison_name.gene_summary.txt
-* comparison_name.log
-
+-   comparison_name.sgrna_summary.txt
+-   comparison_name.gene_summary.txt
+-   comparison_name.log
 
 ```{r}
 # define the comparison_name here; for example,
@@ -29,14 +31,13 @@ comparison_name='Comparison_BeadDP_to_5k_plasmid_output'
 ```
 
 FDR cutoff is used to draw a boundary line in RRA or p value plots. Set it to -1 to disable the boundary line.
+
 ```{r}
 fdrcutoff=0.05
 # fdrcutoff=-1 # disable FDR cutoff line
 ```
 
-
 ## Preprocessing
-
 
 ```{r echo=FALSE}
 
@@ -232,7 +233,6 @@ plot_rra_or_p_scores<-function(gstable,startindex,fdrcolumn,target_list,...){
 }
 ```
 
-
 ```{r echo=FALSE}
 
 gene_summary_file=paste(comparison_name,'.gene_summary.txt',sep='')
@@ -240,7 +240,6 @@ sgrna_summary_file=paste(comparison_name,'.sgrna_summary.txt',sep='')
 log_file=paste(comparison_name,'.log',sep='')
 
 ```
-
 
 Reading input files. If any of these files are problematic, an error message will be shown below.
 
@@ -253,18 +252,14 @@ collabel=c(comp_samples[[1]],comp_samples[[2]])
 
 ## Summary
 
-
-
-
 The samples used in the comparison is indicated as follows.
-
 
 ```{r echo=FALSE,results='asis'}
 sampletable=data.frame(Sample=c(comp_samples[[1]],comp_samples[[2]]),Type=c(rep('control',length(comp_samples[[1]])),rep('treatment',length(comp_samples[[2]]))))
 kable(sampletable,caption='Sample summary')
 ```
 
-The statistics of comparisons is as indicated in the following table. 
+The statistics of comparisons is as indicated in the following table.
 
 ```{r echo=FALSE,results='asis'}
 
@@ -273,23 +268,22 @@ cptable=genreporttable(comparison_name,gstable)
 kable(cptable,caption='Comparion summary')
 ```
 
-
 The meanings of the columns are as follows.
 
-* Comparison: The label for comparisons;
-* Genes: The number of genes in the library;
-* Selection: The direction of selection, either positive selection or negative selection;
-* FDR1%: The number of genes with FDR < 1%;
-* FDR5%: The number of genes with FDR < 5%;
-* FDR25%: The number of genes with FDR < 25%;
+-   Comparison: The label for comparisons;
+-   Genes: The number of genes in the library;
+-   Selection: The direction of selection, either positive selection or negative selection;
+-   FDR1%: The number of genes with FDR \< 1%;
+-   FDR5%: The number of genes with FDR \< 5%;
+-   FDR25%: The number of genes with FDR \< 25%;
 
 ## Plotting invidivual genes in negative selection
 
 The following figures show:
 
-* Individual sgRNA read counts of selected genes in selected samples; 
-* The distribution of RRA scores and p values of all genes; and
-* The RRA scores and p values of selected genes.
+-   Individual sgRNA read counts of selected genes in selected samples;
+-   The distribution of RRA scores and p values of all genes; and
+-   The RRA scores and p values of selected genes.
 
 The following genes are used in the plot (change it as you like). By default, it is the top 5 genes in negatively selected genes.
 
@@ -316,7 +310,6 @@ plot_rra_or_p_scores(gstable,startindex,fdrcolumn,target_list = targetgenelist_n
 
 ```
 
-
 The following figure plots the distribution of p values in these genes. Dotted lines represent the FDR cutoff line defined by the "fdrcutoff" value in the "Paramters" section.
 
 ```{r echo=FALSE}
@@ -330,11 +323,7 @@ plot_rra_or_p_scores(gstable,startindex,fdrcolumn,target_list = targetgenelist_n
 
 ```
 
-
-
 ## Plotting invidivual genes in positive selection
-
-
 
 The following genes are used in the plot (change it as you like). By default, it is the top 5 genes in negatively selected genes.
 
@@ -363,8 +352,6 @@ plot_rra_or_p_scores(gstable,startindex,fdrcolumn,target_list = targetgenelist_p
 
 ```
 
-
-
 The following figure plots the distribution of p values in these genes. Dotted lines represent the FDR cutoff line defined by the "fdrcutoff" value in the "Paramters" section.
 
 ```{r echo=FALSE}
@@ -380,7 +367,6 @@ plot_rra_or_p_scores(gstable,startindex,fdrcolumn,target_list = targetgenelist_p
 
 The following figures show the distribution of sgRNA read counts (normalized) of selected genes in selected samples.
 
-
 ```{r}
 
 for(target_gene in c(targetgenelist_neg,targetgenelist_pos)){
@@ -389,9 +375,7 @@ for(target_gene in c(targetgenelist_neg,targetgenelist_pos)){
 
 ```
 
-
 The following figures show the distribution of sgRNA log2 fold changes of selected genes in selected samples.
-
 
 ```{r}
 
@@ -452,5 +436,3 @@ if(sum(gene_id%in%core_ess_gene_symbol)<6){
 
 }
 ```
-
-

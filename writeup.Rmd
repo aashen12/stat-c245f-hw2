@@ -39,8 +39,12 @@ setwd("/Users/andyshen/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Desk
 
 ```{r,eval=FALSE}
 dir <- "Count_output/"
+test_dir <- "Test_outputs/"
+bdp <- "Bead_DP_v_plasmid5k/"
 main <- read.table(paste0(dir, "Comparison_to_5k_plasmid.count_normalized.txt"), header = TRUE)
 summ <- read.table(paste0(dir, "Comparison_to_5k_plasmid.countsummary.txt"), header = TRUE)
+bdp_genes <- read.table(paste0(test_dir, bdp, "Comparison_BeadDP_to_5k_plasmid_output.gene_summary.txt"), header = TRUE)
+bdp_sgrna <- read.table(paste0(test_dir, bdp, "Comparison_BeadDP_to_5k_plasmid_output.sgrna_summary.txt"), header = TRUE)
 ```
 
 # Introduction
@@ -56,6 +60,10 @@ However, the advent of CRISPR assay sequencing technologies enables domain exper
 Our data is presented as a series of counts per gene. These counts correspond to the number of cells observed per gene. These cells have markers which indicate the presence of T-cells. A double-negative count indicates the presence of a cell with no T-cell markers. A single-positive count indicates one T-cell marker, while a double-positive count indicates the presence of two T-cell markers, the clearest evidence of T-cell detection. 
 
 While each sgRNA has a fixed efficiency, we are not provided that information, so this analysis assumes that the efficiency is fixed across all sgRNAs.
+
+
+# Adjusted p-values
+
 
 
 
