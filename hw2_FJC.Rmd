@@ -17,6 +17,7 @@ library(edgeR)
 library(limma)
 library(patchwork)
 library(MASS)
+library(stringr)
 ```
 
 ## Read in data
@@ -28,6 +29,10 @@ log_count_data <- cbind(count_data[, 1:2], cpm(count_data[, 3:ncol(count_data)],
 
 log_count_melt <- melt(log_count_data)
 colnames(log_count_melt) <- c('sgRNA', 'gene', 'type', 'count')
+log_count_melt$tech <- gsub("SP|DP|DN", "", log_count_melt$type)
+log_count_melt$marker <- gsub("Bead|Cc", "", log_count_melt$type)
+log_count_melt$type <- factor(log_count_melt$type, levels = c("BeadDN", "BeadSP", "BeadDP", "CcDN", "CcSP", "CcDP", "Plasmid5kCTRL"))
+log_count_melt$marker <- factor(log_count_melt$marker, levels = c("DN", "SP", "DP", "Plasmid5kCTRL"))
 ```
 
 ## Kernel Density Plot
@@ -44,7 +49,6 @@ p
 p <- ggplot(log_count_melt, aes(x=type, y=count, fill=type))
 p <- p + geom_boxplot()
 p <- p + labs(x = "type", y = "logCPM")
-#p <- p + ylim(0, 750)
 p <- p + theme(legend.position = "none")
 p
 ```
@@ -87,11 +91,6 @@ p1 <- ggplot(data=plot_data, aes(x=PC1, y=PC2))
 p1 <- p1 + geom_point()
 p1 <- p1 + geom_point(aes(color=log_count_data$DP_DN))
 p1
-```
-
-## Differential Expression
-```{r}
-#limma
 ```
 
 ## enrichR
@@ -140,12 +139,35 @@ tmcd_output <- cov.mcd(transformed_data, quantile.used=nrow(transformed_data) * 
 tmcd_dist <- mahalanobis(transformed_data, center=tmcd_output$center, cov=tmcd_output$cov)
 tmcd_pval <- p.adjust(1 - pchisq(tmcd_dist, mh_df), method=p_method)
 
-count_data[which(mh_pval < sig_level), "Gene"]
-count_data[which(mcd_pval < sig_level), "Gene"]
-count_data[which(tmh_pval < sig_level), "Gene"]
-count_data[which(tmcd_pval < sig_level), "Gene"]
+mh_df <- data.frame(gene=count_data[which(mh_pval < sig_level), "Gene"], pval=mh_pval[which(mh_pval < sig_level)])
+mh_df <- mh_df[order(mh_df$pval), ]
+
+mcd_df <- data.frame(gene=count_data[which(mcd_pval < sig_level), "Gene"], pval=mcd_pval[which(mcd_pval < sig_level)])
+mcd_df <- mcd_df[order(mcd_df$pval), ]
+
+tmh_df <- data.frame(gene=count_data[which(tmh_pval < sig_level), "Gene"], pval=tmh_pval[which(tmh_pval < sig_level)])
+tmh_df <- tmh_df[order(tmh_df$pval), ]
+
+tmcd_df <- data.frame(gene=count_data[which(tmcd_pval < sig_level), "Gene"], pval=tmcd_pval[which(tmcd_pval < sig_level)])
+tmcd_df <- tmcd_df[order(tmcd_df$pval), ]
 
 hist(mcd_dist)
 hist(mcd_pval)
 ```
+
+## Top Genes
+
+```{r}
+plot_df <- log_count_melt[which(log_count_melt$gene == "CD5"), ]
+p <- ggplot(plot_df, aes(x=type, y=count, colour=as.factor(tech), group=as.factor(sgRNA)))
+p <- p + geom_point()
+p <- p + geom_line()
+p <- p + labs(x = "type", y = "logCPM")
+p <- p + theme(legend.position = "none")
+p
+```
+
+
+
+
 
