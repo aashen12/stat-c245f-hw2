@@ -1,0 +1,163 @@
+---
+title: "correlation_enrichR"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r message=FALSE, warning=FALSE}
+install.packages("corrplot")
+install.packages("enrichR")
+install.packages("ggpubr")
+library(enrichR)
+library(ggpubr)
+library(tidyverse)
+library(corrplot)
+```
+
+###EDA
+# load data, create matrix
+```{r}
+dir <- getwd()
+count_output <- read.table(paste0(dir,"/Count_output/Comparison_to_5k_plasmid.count.txt"), header = T)
+
+# nrow(count_output)/length(unique(count_output$Gene)) # on average ~3.7 sgRNA per gene
+
+count_matrix <- count_output[,3:9]
+
+cor <-cor(count_matrix)
+
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+```
+
+<!-- #correlation matrix (original scale) -->
+<!-- ```{r} -->
+<!-- corrplot(cor, type = "upper", method = "number") -->
+<!-- ``` -->
+
+#correlation matrix (log scale)
+```{r}
+count_matrix_log <- log(count_output[,3:9]+0.00000001)
+
+cor_log <-cor(count_matrix_log)
+
+corrplot(cor_log, type = "upper", method = "number")
+```
+
+<!-- #scatterplot (original scale) -->
+<!-- ```{r} -->
+<!-- pairs(count_matrix, pch = 10, lower.panel = NULL) -->
+<!-- ``` -->
+
+#scatterplot (log scale)
+```{r}
+pairs(count_matrix_log, pch = 10, lower.panel = NULL)
+```
+
+#Interpretation: correlation matrix and scatterplot suggest some correlation structure among the columns, which justifies the use of joint distribution as opposed to pairwise column comparison.
+
+###EnrichR
+#load data
+```{r}
+dir <- getwd()
+bead_genes_DP <- read.table(paste0(dir,"/Test_outputs/Bead_DP_v_plasmid5k/Comparison_BeadDP_to_5k_plasmid_output.gene_summary.txt"), header = T)
+cc_genes_DP <- read.table(paste0(dir,"/Test_outputs/Cc_DP_v_plasmid5k/Comparison_CcDP_to_5k_plasmid_output.gene_summary.txt"), header = T)
+
+bead_genes_SP <- read.table(paste0(dir,"/Test_outputs/Bead_SP_v_plasmid5k/Comparison_BeadSP_to_5k_plasmid_output.gene_summary.txt"), header = T)
+cc_genes_SP <- read.table(paste0(dir,"/Test_outputs/Cc_SP_v_plasmid5k/Comparison_CcSP_to_5k_plasmid_output.gene_summary.txt"), header = T)
+
+bead_genes_DN <- read.table(paste0(dir,"/Test_outputs/Bead_DN_v_plasmid5k/Comparison_BeadDN_to_5k_plasmid_output.gene_summary.txt"), header = T)
+cc_genes_DN <- read.table(paste0(dir,"/Test_outputs/Cc_DN_v_plasmid5k/Comparison_CcDN_to_5k_plasmid_output.gene_summary.txt"), header = T)
+```
+
+```{r}
+# inhibitors predicted by mageck include negatively selected DP and positively selected DN
+#DP
+bead_DP_sig <- bead_genes_DP %>% 
+  arrange(neg.rank) %>%
+  filter(neg.p.value<0.05)%>%
+  select(id)
+cc_DP_sig <- cc_genes_DP %>% 
+  arrange(neg.rank) %>%
+  filter(neg.p.value<0.05)%>%
+  select(id)
+bead_DP_sig$method <- rep('bead',nrow(bead_DP_sig))
+cc_DP_sig$method <- rep('cc',nrow(cc_DP_sig))
+bead_DP_sig$response <- rep('DP',nrow(bead_DP_sig))
+cc_DP_sig$response <- rep('DP',nrow(cc_DP_sig))
+
+#DN
+bead_DN_sig <- bead_genes_DN %>% 
+  arrange(pos.rank) %>%
+  filter(pos.p.value<0.05)%>%
+  select(id)
+cc_DN_sig <- cc_genes_DN %>% 
+  arrange(pos.rank) %>%
+  filter(pos.p.value<0.05)%>%
+  select(id)
+bead_DN_sig$method <- rep('bead',nrow(bead_DN_sig))
+cc_DN_sig$method <- rep('cc',nrow(cc_DN_sig))
+bead_DN_sig$response <- rep('DN',nrow(bead_DN_sig))
+cc_DN_sig$response <- rep('DN',nrow(cc_DN_sig))
+
+mageck_inhib <- bind_rows(bead_DP_sig,cc_DP_sig,bead_DN_sig,cc_DN_sig)
+
+mageck_inhib <- distinct(mageck_inhib,id,.keep_all = T) #253
+```
+
+```{r}
+mcd_inhib <- readRDS("~/stat-c245f-hw2/inhibitors/mcd_inhib.rds")
+mcd_inhib$gene <- rownames(mcd_inhib)
+rownames(mcd_inhib) <- NULL
+
+# mcd_inhib_bead <- mcd_inhib %>%
+#   filter(Bead == "Inhibitor") #38
+```
+
+#EnrichR (mageck)
+#bead DP
+```{r}
+mageck_inhib_bead <- mageck_inhib %>%
+  filter(method == "bead" & response == "DP") #69
+websiteLive <- TRUE
+listEnrichrDbs()
+dbs <- c("GO_Molecular_Function_2021", "GO_Cellular_Component_2021", "GO_Biological_Process_2021", "Human_Phenotype_Ontology")
+if (websiteLive) {
+    enriched1 <- enrichr(mageck_inhib_bead$id, dbs)
+}
+
+p1 <- if (websiteLive) plotEnrich(enriched1[[1]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "GO_Molecular_Function")
+p2 <- if (websiteLive) plotEnrich(enriched1[[2]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "GO_Cellular_Component")
+p3 <- if (websiteLive) plotEnrich(enriched1[[3]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "GO_Biological_Process")
+p4 <- if (websiteLive) plotEnrich(enriched1[[4]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "Human_Phenotype_Ontology (Bead)")
+# p1;p2;p3;p4
+```
+
+#EnrichR (mcd)
+#all 53 genes
+```{r}
+if (websiteLive) {
+    enriched2 <- enrichr(mcd_inhib$gene, dbs)
+}
+
+p5 <- if (websiteLive) plotEnrich(enriched2[[1]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "GO_Molecular_Function")
+p6 <- if (websiteLive) plotEnrich(enriched2[[2]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "GO_Cellular_Component")
+p7 <- if (websiteLive) plotEnrich(enriched2[[3]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "GO_Biological_Process")
+p8 <- if (websiteLive) plotEnrich(enriched2[[4]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "Human_Phenotype_Ontology")
+
+# p5;p6;p7;p8
+```
+
+#combine graphs
+```{r}
+mageck_inhib_graph <- ggarrange(p3,p4, ncol =2)
+mageck_inhib_graph <- annotate_figure(mageck_inhib_graph, left = text_grob("MAGeCK", rot = 90))
+mcd_inhib_graph <- ggarrange(p7,p8, ncol =2)
+mcd_inhib_graph <- annotate_figure(mcd_inhib_graph, left = text_grob("MCD", rot = 90))
+
+fig <- ggarrange(mageck_inhib_graph,mcd_inhib_graph, nrow = 2)
+```
+
+#Intepretation: We did an enrichment analysis of the essential genes predicted by MCD and by MAGeCK (DP with a negative p.value <  0.05). Biological processes seemingly relevant to T cell development such as T cell receptor signaling pathway and regulation of stem cell differential showed up as significantly enriched for both sets of gene predictions. Similarly, disease phenotypes relevent to T cell malfunction such as T lymphocytopenia and abnormality of T cells appeared at the top of the list of the enriched terms for both sets of genes. While some enriched terms for the genes predicted by MCD seem less relevant compared to those for MAGeCK, overall the result suggests that both methods are able to capture the essential genes reasonably well. 
