@@ -20,6 +20,7 @@ library(ggpubr)
 library(reshape)
 library(limma)
 library(patchwork)
+library(ggVennDiagram)
 library(MASS)
 library(kableExtra)
 library(knitr)
@@ -31,8 +32,7 @@ knitr::opts_chunk$set(
   fig.height = 4,  # set default height of figures
   fig.align = "center",  # always align figure in center
   fig.pos = "H",  # always plot figure at the exact location of the code chunk
-  cache = FALSE,
-  dev = "jpeg") 
+  cache = FALSE) 
 setwd("/Users/andyshen/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Desktop - Andy’s MacBook Pro/UC Berkeley/spring-2022/stat-c245f/stat-c245f-hw2")
 ```
 
@@ -91,32 +91,9 @@ full_counts_norm <- full_join(count_data, num_guide_df, by = "Gene")
 
 
 
-```{r}
-cols <- c("sgRNA", "Gene", "BeadDP", "BeadDN", "CcDP" , "CcDN" , "Plasmid5kCTRL")
-cand_genes <- tmcd$gene
-full_counts_norm %>% filter(Gene == cand_genes[2]) %>% 
-  dplyr::select(all_of(cols)) %>% 
-  mutate(across(c(BeadDN, BeadDP, CcDP, CcDN), ~ .x - Plasmid5kCTRL)) %>% 
-  dplyr::select(-Plasmid5kCTRL) %>% 
-  summarise(across(where(is.numeric), mean))
-sap_out <- sapply(cand_genes, function(g) {
-  cdf <- full_counts_norm %>% filter(Gene == g) %>% 
-  dplyr::select(all_of(cols)) %>% 
-  mutate(across(c(BeadDN, BeadDP, CcDP, CcDN), ~ .x - Plasmid5kCTRL)) %>% 
-  dplyr::select(-Plasmid5kCTRL) %>% 
-  summarise(across(where(is.numeric), mean))
-  inhib_bead <- ifelse(cdf$BeadDP <= cdf$BeadDN, "Inhibitor", "Promoter")
-  inhib_cc <- ifelse(cdf$CcDP <= cdf$CcDN, "Inhibitor", "Promoter")
-  out <- c(inhib_bead, inhib_cc)
-  names(out) <- c("Bead", "Cc")
-  out
-})
-t(sap_out)
-```
-
-
 
 ```{r}
+# determining inhibitors vs promoters
 extractInhibitors <- function(data) {
   cols <- c("sgRNA", "Gene", "BeadDP", "BeadDN", "CcDP" , "CcDN" , "Plasmid5kCTRL")
   cand_genes <- data$gene
@@ -132,7 +109,7 @@ extractInhibitors <- function(data) {
     names(out) <- c("Bead", "Cc")
     out
   })
-  t(sap_out)
+  t(sap_out) %>% data.frame()
 }
 ```
 
@@ -140,19 +117,52 @@ extractInhibitors <- function(data) {
 
 ```{r}
 mcd_inhib <- extractInhibitors(mcd)
-saveRDS(mcd_inhib, "./inhibitors/mcd_inhib.rds")
 mh_inhib <- extractInhibitors(mh)
-saveRDS(mh_inhib, "./inhibitors/mh_inhib.rds")
 tmcd_inhib <- extractInhibitors(tmcd)
-saveRDS(tmcd_inhib, "./inhibitors/tmcd_inhib.rds")
 tmh_inhib <- extractInhibitors(tmh)
+```
+
+
+```{r, eval=FALSE}
+saveRDS(mcd_inhib, "./inhibitors/mcd_inhib.rds")
+saveRDS(mh_inhib, "./inhibitors/mh_inhib.rds")
+saveRDS(tmcd_inhib, "./inhibitors/tmcd_inhib.rds")
 saveRDS(tmh_inhib, "./inhibitors/tmh_inhib.rds")
+```
+
+```{r}
+both_inhib <- mcd_inhib %>% data.frame() %>% 
+  mutate(full_inhib = ifelse(Bead == "Inhibitor" & Cc == "Inhibitor", TRUE, FALSE)) %>% 
+  filter(full_inhib == TRUE)
+# both are inhibitor
 ```
 
 
 
 In order to determine whether the genes we discovered using these four methods are inhibitors of T-cell differentiation or not, we compare the average difference in DN and DP T-cell counts with respect to the control. However, since each gene has a different number if guide RNAs assigned to it, we must scale the counts by the number of guide RNAs assigned to each gene.
 
+
+We discover 9 genes that are classified as inhibitor by both the Bead and cell co-culture. These genes are `r rownames(both_inhib)`.
+
+Add more analysis...
+
+To further compare our results with those of MAGeCK, we examine the overlapping significant genes between the two methods. Figure \blue{\ref{fig:vds}} shows the number of genes that overlap between the two methods. Note that for the MAGeCK algorithm, we only consider genes that were selected with negative p-value less than 0.05.
+
+```{r}
+bead_dp_sig <- bead_dp %>% filter(neg.p.value < 0.05)
+cc_dp_sig <- cc_dp %>% filter(neg.p.value < 0.05)
+```
+
+```{r vds, fig.cap="Overlap of discovered genes from MAGeCK (Bead/Cc DP) and our MCD method."}
+vd_bdp_mcd <- ggVennDiagram(list("Bead DP" = bead_dp_sig$id, "MCD" = mcd$gene)) + 
+  theme(legend.position = "none")
+vd_ccdp_mcd <- ggVennDiagram(list("Cc DP" = cc_dp_sig$id, "MCD" = mcd$gene)) + 
+  scale_fill_gradient(low = "#F6BDC0", high = "#DC1C13") + 
+  theme(legend.position = "none")
+vd_bdp_mcd + vd_ccdp_mcd
+```
+
+These results indicate that our method is especially amenable to the bead genes as 21 genes overlap between the two methods. Moreover, our method is slightly more conservative than MAGeCk since we selected fewer genes. While our results show strong overlap, future work for corroborating the efficacy of these methods requires an in-depth look into the selected genes and the role they play in T-cell differentiation.  
 
 
 
