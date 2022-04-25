@@ -97,7 +97,7 @@ While each sgRNA has a fixed efficiency, we are not provided that information, s
 
 We compute the column-wise correlation between all columns in our data set in order to get an initial sense on how our data is distributed. These values are summarized in Figure \blue{\ref{fig:colcorr}}. We observe that that there exists a moderately strong association between some columns, namely between SP columns and other columns. These associations justify using the joint distribution of the columns as opposed to pairwise column distributions.
 
-```{r colcorr, fig.cap="Correlation of all columns with each other in nornalized data set.", out.width='85%'}
+```{r colcorr, fig.height=5, fig.width=7, fig.cap="Correlation of all columns with each other in nornalized data set.", out.width='85%'}
 corrplot(cor_log, type = "upper", method = "number")
 ```
 
