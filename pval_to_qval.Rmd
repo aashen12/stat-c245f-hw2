@@ -1,0 +1,40 @@
+---
+title: "Q-value Analysis"
+author: "Andy Shen"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# convert p-values to q values
+setwd("~/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Desktop - Andy’s MacBook Pro/UC Berkeley/spring-2022/stat-c245f/stat-c245f-hw2")
+library(qvalue)
+library(tidyverse)
+
+path_bead <- "./Test_outputs/Bead_DP_v_plasmid5k/"
+path_cc <- "./Test_outputs/Cc_SP_v_plasmid5k/"
+```
+
+```{r}
+summ_bead <- read.table(paste0(path_cc,"Comparison_CcSP_to_5k_plasmid_output.gene_summary.txt"), 
+                       header = TRUE)
+```
+
+```{r}
+summ_bead_qvals <- summ_bead %>% 
+  mutate(neg.qval = qvalue(summ_bead$neg.p.value)$qvalues) %>% 
+  relocate(neg.qval, .after = neg.p.value) %>% 
+  mutate(pos.qval = qvalue(summ_bead$pos.p.value)$qvalues) %>% 
+  relocate(pos.qval, .after = pos.p.value) %>% arrange(neg.qval)
+```
+
+```{r}
+qv <- qvalue(summ_bead$neg.p.value)
+qv$pvalues
+```
+
+

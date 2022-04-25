@@ -1,0 +1,173 @@
+---
+title: "Final Project"
+author: "Florica"
+date: "4/21/2022"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Libraries
+```{r}
+library(ggplot2)
+library(reshape)
+library(edgeR)
+library(limma)
+library(patchwork)
+library(MASS)
+library(stringr)
+```
+
+## Read in data
+
+```{r}
+count_data <- read.csv('./Count_output/Comparison_to_5k_plasmid.count_normalized.txt', sep='\t')
+count_data_orig <- read.csv('./Count_output/Comparison_to_5k_plasmid.count.txt', sep='\t')
+log_count_data <- cbind(count_data[, 1:2], cpm(count_data[, 3:ncol(count_data)], log=TRUE))
+
+log_count_melt <- melt(log_count_data)
+colnames(log_count_melt) <- c('sgRNA', 'gene', 'type', 'count')
+log_count_melt$tech <- gsub("SP|DP|DN", "", log_count_melt$type)
+log_count_melt$marker <- gsub("Bead|Cc", "", log_count_melt$type)
+log_count_melt$type <- factor(log_count_melt$type, levels = c("BeadDN", "BeadSP", "BeadDP", "CcDN", "CcSP", "CcDP", "Plasmid5kCTRL"))
+log_count_melt$marker <- factor(log_count_melt$marker, levels = c("DN", "SP", "DP", "Plasmid5kCTRL"))
+```
+
+## Kernel Density Plot
+```{r}
+p <- ggplot(log_count_melt, aes(x=count, fill=type))
+p <- p + geom_density(alpha = 0.5, lwd = 1, linetype = 1)
+p <- p + labs(x = "logCPM")
+p
+```
+
+## Boxplot
+
+```{r}
+p <- ggplot(log_count_melt, aes(x=type, y=count, fill=type))
+p <- p + geom_boxplot()
+p <- p + labs(x = "type", y = "logCPM")
+p <- p + theme(legend.position = "none")
+p
+```
+
+## PCA
+```{r}
+gene_pca <- prcomp(log_count_data[, !(colnames(log_count_data) %in% c("sgRNA", "Gene"))], scale=TRUE, center=TRUE)
+
+p1 <- qplot(c(1:length(gene_pca$sdev)), gene_pca$sdev)
+p1 <- p1 + geom_point()
+p1 <- p1 + xlab("Principal Component Index") + ylab("Standard Deviation")
+p1 <- p1 + ggtitle("Scree Plot of Data")
+
+p2 <- qplot(c(1:length(gene_pca$sdev)), 
+            svd(log_count_data[, 
+                          !(colnames(log_count_data) 
+                            %in% c("sgRNA", "Gene"))])$d)
+p2 <- p2 + geom_point()
+p2 <- p2 + xlab("Index") + ylab("Data singular value")
+p2 <- p2 + ggtitle("Singular Values of Data")
+p2 <- p2 + scale_y_continuous(trans="log10")
+
+p1 + p2
+```
+
+# Color by if gene has less counts for treatment than control 
+# (6 plots, one for each comparison)
+
+```{r}
+log_count_data$DP_DN <- ((log_count_data$CcDP < log_count_data$CcDN) & (log_count_data$CcDP < log_count_data$Plasmid5kCTRL) & (log_count_data$BeadDP < log_count_data$BeadDN) & (log_count_data$BeadDP < log_count_data$Plasmid5kCTRL))
+
+
+log_count_data$DP_SP <- ((log_count_data$CcDP < log_count_data$CcSP) & (log_count_data$CcDP < log_count_data$Plasmid5kCTRL) & (log_count_data$BeadDP < log_count_data$BeadSP) & (log_count_data$BeadDP < log_count_data$Plasmid5kCTRL))
+```
+
+```{r}
+plot_data <- cbind(gene_pca$x[, 1:2], 
+                   log_count_data[, c("sgRNA", "Gene")])
+p1 <- ggplot(data=plot_data, aes(x=PC1, y=PC2))
+p1 <- p1 + geom_point()
+p1 <- p1 + geom_point(aes(color=log_count_data$DP_DN))
+p1
+```
+
+## enrichR
+```{r}
+# https://maayanlab.cloud/Harmonizome/gene_set/abnormal+t+cell+differentiation/MPO+Gene-Phenotype+Associations
+```
+
+The Mahalanobis distance is a distance between samples and a multivariate distribution with a given mean and covariance [CITE]. For a given sample $x$, mean vector $\mu$, and covariance $\Sigma$, we have that the squared distance between $x$ and $\mu$ is given by
+$$d(x; \mu, \Sigma)^2 = (x - \mu)^T \Sigma^{-1} (x - \mu).$$
+Given data, we can compute an estimate of the mean and covariance and hence find how far each sample is from the mean of the samples. That is, we have a method for detecting outliers in multivariate data, and, this method takes into account the correlations between the columns in the dataset. When the data follow a $d$-dimensional multivariate Gaussian distribution, we have that the squared Mahalanobis distance follows a $\chi^2$ distribution with $d$ degrees of freedom [CITE]. 
+
+In this setting, we believe that the majority of genes do not suppress the development of $t$-cells. That is, the genes that do are outliers with respect to some metric. We investigate four variations of the Mahalanobis distance as our metric of choice. First, we look at the ordinary Mahalanobis distance. Second, noting that if there are outliers in the data, we should not include them in the computation of the mean and covariance, we replace the mean and covariance with those computed by the Minimum Covariance Determinant (MCD) technique and use these in the Mahalanobis distance computation. Third and fourth, inspired by the approach in [CITE XPCA paper], we transform the data to 'look Gaussian' and repeat the previous two approaches--our hope is that perhaps transforming the data might lead to more accurate $p$-values or greater power. That is, we compute an empirical distribution function (ECDF) for each column, evaluate all rows in the ECDF, and then apply the inverse distribution function for a standard Gaussian distribution. That is, if $\widehat{F}$ is the ECDF of the data, and $G$ is the standard Gaussian distribution function, we apply $\widehat{F}(G^{-1}(x))$ to each data point $x$. We repeat this for each column. 
+```{r}
+outlier_data <- log_count_data[, c(3:9)]
+p_method <- "BY"
+sig_level <- 0.05
+mh_df <- ncol(outlier_data)
+
+# Mahalanobis distance for outlier detection
+# Note that R gives you the squared distance
+mh_dist <- mahalanobis(outlier_data, center=colMeans(outlier_data), cov=cov(outlier_data))
+# Chi Square assumption on data
+mh_pval <- p.adjust(1 - pchisq(mh_dist, mh_df), method=p_method)
+
+# Robust version of above using Minimum Covariance Determinant
+mcd_quantile <- 0.8 # Throw out 1 - this of data
+mcd_output <- cov.mcd(outlier_data, quantile.used=nrow(outlier_data) * mcd_quantile)
+mcd_dist <- mahalanobis(outlier_data, center=mcd_output$center, cov=mcd_output$cov)
+mcd_pval <- p.adjust(1 - pchisq(mcd_dist, mh_df), method=p_method)
+
+# See XPCA paper for idea https://arxiv.org/abs/1808.07510
+# Basically, transform the data to look Gaussian
+# Compute ECDF -> Apply Inverse Gaussian CDF
+transformed_data <- 1 * outlier_data
+for (idx in 1:ncol(outlier_data)) {
+  # Compute ECDF
+  # Add points below min and above max to avoid infinities
+  fcn <- ecdf(c(outlier_data[, idx], min(outlier_data[, idx]) - sd(outlier_data[, idx]), max(outlier_data[, idx]) + sd(outlier_data[, idx])))
+  transformed_data[, idx] <- qnorm(fcn(outlier_data[, idx]))
+}
+# Repeat Mahalanobis distance with transformed data
+tmh_dist <- mahalanobis(transformed_data, center=colMeans(transformed_data, na.rm=TRUE), cov=cov(transformed_data))
+tmh_pval <- p.adjust(1 - pchisq(tmh_dist, mh_df), method=p_method)
+# Repeat MCD approach for transformed data
+tmcd_output <- cov.mcd(transformed_data, quantile.used=nrow(transformed_data) * mcd_quantile)
+tmcd_dist <- mahalanobis(transformed_data, center=tmcd_output$center, cov=tmcd_output$cov)
+tmcd_pval <- p.adjust(1 - pchisq(tmcd_dist, mh_df), method=p_method)
+
+mh_df <- data.frame(gene=count_data[which(mh_pval < sig_level), "Gene"], pval=mh_pval[which(mh_pval < sig_level)])
+mh_df <- mh_df[order(mh_df$pval), ]
+
+mcd_df <- data.frame(gene=count_data[which(mcd_pval < sig_level), "Gene"], pval=mcd_pval[which(mcd_pval < sig_level)])
+mcd_df <- mcd_df[order(mcd_df$pval), ]
+
+tmh_df <- data.frame(gene=count_data[which(tmh_pval < sig_level), "Gene"], pval=tmh_pval[which(tmh_pval < sig_level)])
+tmh_df <- tmh_df[order(tmh_df$pval), ]
+
+tmcd_df <- data.frame(gene=count_data[which(tmcd_pval < sig_level), "Gene"], pval=tmcd_pval[which(tmcd_pval < sig_level)])
+tmcd_df <- tmcd_df[order(tmcd_df$pval), ]
+
+hist(mcd_dist)
+hist(mcd_pval)
+```
+
+## Top Genes
+
+```{r}
+plot_df <- log_count_melt[which(log_count_melt$gene == "CD5"), ]
+p <- ggplot(plot_df, aes(x=type, y=count, colour=as.factor(tech), group=as.factor(sgRNA)))
+p <- p + geom_point()
+p <- p + geom_line()
+p <- p + labs(x = "type", y = "logCPM")
+p <- p + theme(legend.position = "none")
+p
+```
+
+
+
+
+

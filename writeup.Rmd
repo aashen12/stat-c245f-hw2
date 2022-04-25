@@ -17,6 +17,11 @@ library(tidyverse)
 library(GGally)
 library(cvms)
 library(ggpubr)
+library(reshape)
+library(limma)
+library(patchwork)
+library(ggVennDiagram)
+library(MASS)
 library(kableExtra)
 library(knitr)
 knitr::opts_chunk$set(
@@ -27,8 +32,7 @@ knitr::opts_chunk$set(
   fig.height = 4,  # set default height of figures
   fig.align = "center",  # always align figure in center
   fig.pos = "H",  # always plot figure at the exact location of the code chunk
-  cache = FALSE,
-  dev = "jpeg") 
+  cache = FALSE) 
 setwd("/Users/andyshen/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Desktop - Andy’s MacBook Pro/UC Berkeley/spring-2022/stat-c245f/stat-c245f-hw2")
 ```
 
@@ -37,10 +41,29 @@ setwd("/Users/andyshen/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Desk
 \newcommand{\bb}{\textbf}
 
 
-```{r,eval=FALSE}
-dir <- "Count_output/"
-main <- read.table(paste0(dir, "Comparison_to_5k_plasmid.count_normalized.txt"), header = TRUE)
-summ <- read.table(paste0(dir, "Comparison_to_5k_plasmid.countsummary.txt"), header = TRUE)
+```{r}
+# read in data
+count_data <- read.csv('./Count_output/Comparison_to_5k_plasmid.count_normalized.txt', sep='\t')
+count_data_orig <- read.csv('./Count_output/Comparison_to_5k_plasmid.count.txt', sep='\t')
+
+
+path_beaddp <- "./Test_outputs/Bead_DP_v_plasmid5k/"
+path_ccdp <- "./Test_outputs/Cc_DP_v_plasmid5k/"
+path_beaddn <- "./Test_outputs/Bead_DN_v_plasmid5k/"
+path_ccdn <- "./Test_outputs/Cc_DN_v_plasmid5k/"
+
+bead_dp <- read.table(paste0(path_beaddp,"Comparison_BeadDP_to_5k_plasmid_output.gene_summary.txt"), 
+                       header = TRUE)
+bead_dn <- read.table(paste0(path_beaddn,"Comparison_BeadDN_to_5k_plasmid_output.gene_summary.txt"), 
+                       header = TRUE)
+cc_dp <- read.table(paste0(path_ccdp,"Comparison_CcDP_to_5k_plasmid_output.gene_summary.txt"), 
+                       header = TRUE)
+cc_dn <- read.table(paste0(path_ccdn,"Comparison_CcDN_to_5k_plasmid_output.gene_summary.txt"), 
+                       header = TRUE)
+mcd <- readRDS("mcd_df.rds")
+mh <- readRDS("mh_df.rds")
+tmcd <- readRDS("tmcd_df.rds")
+tmh <- readRDS("tmh_df.rds")
 ```
 
 # Introduction
@@ -53,9 +76,93 @@ However, the advent of CRISPR assay sequencing technologies enables domain exper
 
 # Data Organization
 
-Our data is presented as a series of counts per gene. These counts correspond to the number of cells observed per gene. These cells have markers which indicate the presence of T-cells. A double-negative count indicates the presence of a cell with no T-cell markers. A single-positive count indicates one T-cell marker, while a double-positive count indicates the presence of two T-cell markers, the clearest evidence of T-cell detection. 
+Our data is presented as a series of counts per gene. These counts correspond to the number of cells observed per gene. These cells have markers which indicate the presence of T-cells. A double-negative (DN) count indicates the presence of a cell with no T-cell markers. A single-positive (SP) count indicates one T-cell marker, while a double-positive (DP) count indicates the presence of two T-cell markers, the clearest evidence of T-cell detection. 
 
 While each sgRNA has a fixed efficiency, we are not provided that information, so this analysis assumes that the efficiency is fixed across all sgRNAs.
+
+
+# Inhibitors of T-Cell Differentiation
+
+```{r}
+num_guide_df <- bead_dn
+num_guide_df$Gene <- num_guide_df$id
+full_counts_norm <- full_join(count_data, num_guide_df, by = "Gene")
+```
+
+
+
+
+```{r}
+# determining inhibitors vs promoters
+extractInhibitors <- function(data) {
+  cols <- c("sgRNA", "Gene", "BeadDP", "BeadDN", "CcDP" , "CcDN" , "Plasmid5kCTRL")
+  cand_genes <- data$gene
+  sap_out <- sapply(cand_genes, function(g) {
+    cdf <- full_counts_norm %>% filter(Gene == g) %>% 
+    dplyr::select(all_of(cols)) %>% 
+    mutate(across(c(BeadDN, BeadDP, CcDP, CcDN), ~ .x - Plasmid5kCTRL)) %>% 
+    dplyr::select(-Plasmid5kCTRL) %>% 
+    summarise(across(where(is.numeric), mean))
+    inhib_bead <- ifelse(cdf$BeadDP <= cdf$BeadDN, "Inhibitor", "Promoter")
+    inhib_cc <- ifelse(cdf$CcDP <= cdf$CcDN, "Inhibitor", "Promoter")
+    out <- c(inhib_bead, inhib_cc)
+    names(out) <- c("Bead", "Cc")
+    out
+  })
+  t(sap_out) %>% data.frame()
+}
+```
+
+
+
+```{r}
+mcd_inhib <- extractInhibitors(mcd)
+mh_inhib <- extractInhibitors(mh)
+tmcd_inhib <- extractInhibitors(tmcd)
+tmh_inhib <- extractInhibitors(tmh)
+```
+
+
+```{r, eval=FALSE}
+saveRDS(mcd_inhib, "./inhibitors/mcd_inhib.rds")
+saveRDS(mh_inhib, "./inhibitors/mh_inhib.rds")
+saveRDS(tmcd_inhib, "./inhibitors/tmcd_inhib.rds")
+saveRDS(tmh_inhib, "./inhibitors/tmh_inhib.rds")
+```
+
+```{r}
+both_inhib <- mcd_inhib %>% data.frame() %>% 
+  mutate(full_inhib = ifelse(Bead == "Inhibitor" & Cc == "Inhibitor", TRUE, FALSE)) %>% 
+  filter(full_inhib == TRUE)
+# both are inhibitor
+```
+
+
+
+In order to determine whether the genes we discovered using these four methods are inhibitors of T-cell differentiation or not, we compare the average difference in DN and DP T-cell counts with respect to the control. However, since each gene has a different number if guide RNAs assigned to it, we must scale the counts by the number of guide RNAs assigned to each gene.
+
+
+We discover 9 genes that are classified as inhibitor by both the Bead and cell co-culture. These genes are `r rownames(both_inhib)`.
+
+Add more analysis...
+
+To further compare our results with those of MAGeCK, we examine the overlapping significant genes between the two methods. Figure \blue{\ref{fig:vds}} shows the number of genes that overlap between the two methods. Note that for the MAGeCK algorithm, we only consider genes that were selected with negative p-value less than 0.05.
+
+```{r}
+bead_dp_sig <- bead_dp %>% filter(neg.p.value < 0.05)
+cc_dp_sig <- cc_dp %>% filter(neg.p.value < 0.05)
+```
+
+```{r vds, fig.cap="Overlap of discovered genes from MAGeCK (Bead/Cc DP) and our MCD method."}
+vd_bdp_mcd <- ggVennDiagram(list("Bead DP" = bead_dp_sig$id, "MCD" = mcd$gene)) + 
+  theme(legend.position = "none")
+vd_ccdp_mcd <- ggVennDiagram(list("Cc DP" = cc_dp_sig$id, "MCD" = mcd$gene)) + 
+  scale_fill_gradient(low = "#F6BDC0", high = "#DC1C13") + 
+  theme(legend.position = "none")
+vd_bdp_mcd + vd_ccdp_mcd
+```
+
+These results indicate that our method is especially amenable to the bead genes as 21 genes overlap between the two methods. Moreover, our method is slightly more conservative than MAGeCk since we selected fewer genes. While our results show strong overlap, future work for corroborating the efficacy of these methods requires an in-depth look into the selected genes and the role they play in T-cell differentiation.  
 
 
 
