@@ -15,10 +15,12 @@ bibliography: bibliography.bib
 rm(list = ls())
 library(tidyverse)
 library(GGally)
+library(corrplot)
 library(cvms)
 library(ggpubr)
 library(reshape)
 library(limma)
+library(enrichR)
 library(patchwork)
 library(ggVennDiagram)
 library(MASS)
@@ -44,9 +46,19 @@ setwd("/Users/andyshen/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Desk
 ```{r}
 # read in data
 count_data <- read.csv('./Count_output/Comparison_to_5k_plasmid.count_normalized.txt', sep='\t')
-count_data_orig <- read.csv('./Count_output/Comparison_to_5k_plasmid.count.txt', sep='\t')
+count_output <- read.csv('./Count_output/Comparison_to_5k_plasmid.count.txt', sep='\t')
+count_matrix <- count_output[,3:9]
+cor <-cor(count_matrix)
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
 
 
+mcd <- readRDS("mcd_df.rds")
+mh <- readRDS("mh_df.rds")
+tmcd <- readRDS("tmcd_df.rds")
+tmh <- readRDS("tmh_df.rds")
+```
+
+```{r}
 path_beaddp <- "./Test_outputs/Bead_DP_v_plasmid5k/"
 path_ccdp <- "./Test_outputs/Cc_DP_v_plasmid5k/"
 path_beaddn <- "./Test_outputs/Bead_DN_v_plasmid5k/"
@@ -60,11 +72,10 @@ cc_dp <- read.table(paste0(path_ccdp,"Comparison_CcDP_to_5k_plasmid_output.gene_
                        header = TRUE)
 cc_dn <- read.table(paste0(path_ccdn,"Comparison_CcDN_to_5k_plasmid_output.gene_summary.txt"), 
                        header = TRUE)
-mcd <- readRDS("mcd_df.rds")
-mh <- readRDS("mh_df.rds")
-tmcd <- readRDS("tmcd_df.rds")
-tmh <- readRDS("tmh_df.rds")
 ```
+
+
+
 
 # Introduction
 
@@ -79,6 +90,8 @@ However, the advent of CRISPR assay sequencing technologies enables domain exper
 Our data is presented as a series of counts per gene. These counts correspond to the number of cells observed per gene. These cells have markers which indicate the presence of T-cells. A double-negative (DN) count indicates the presence of a cell with no T-cell markers. A single-positive (SP) count indicates one T-cell marker, while a double-positive (DP) count indicates the presence of two T-cell markers, the clearest evidence of T-cell detection. 
 
 While each sgRNA has a fixed efficiency, we are not provided that information, so this analysis assumes that the efficiency is fixed across all sgRNAs.
+
+
 
 
 # Inhibitors of T-Cell Differentiation
@@ -139,12 +152,12 @@ both_inhib <- mcd_inhib %>% data.frame() %>%
 
 
 
-In order to determine whether the genes we discovered using these four methods are inhibitors of T-cell differentiation or not, we compare the average difference in DN and DP T-cell counts with respect to the control. However, since each gene has a different number if guide RNAs assigned to it, we must scale the counts by the number of guide RNAs assigned to each gene.
+In order to determine whether the genes we discovered using these four methods are inhibitors of T-cell differentiation or not, we compare the average difference in DN and DP T-cell counts with respect to the control. However, since each gene has a different number if guide RNAs assigned to it, we must scale the counts by the number of guide RNAs assigned to each gene. If the average difference of DN counts with the control is larger than that of DP with the control, we can infer the gene as an inhibitor, otherwise it is a promoter. 
 
 
-We discover 9 genes that are classified as inhibitor by both the Bead and cell co-culture. These genes are `r rownames(both_inhib)`.
+We discover 9 genes that are classified as inhibitor by both the Bead and cell co-culture. These genes are `r rownames(both_inhib)`. The biological significance of these genes is explained further in Section \blue{\ref{sec:enrichr}}.
 
-Add more analysis...
+\red{Do we need to write more here?}
 
 To further compare our results with those of MAGeCK, we examine the overlapping significant genes between the two methods. Figure \blue{\ref{fig:vds}} shows the number of genes that overlap between the two methods. Note that for the MAGeCK algorithm, we only consider genes that were selected with negative p-value less than 0.05.
 
@@ -162,7 +175,130 @@ vd_ccdp_mcd <- ggVennDiagram(list("Cc DP" = cc_dp_sig$id, "MCD" = mcd$gene)) +
 vd_bdp_mcd + vd_ccdp_mcd
 ```
 
-These results indicate that our method is especially amenable to the bead genes as 21 genes overlap between the two methods. Moreover, our method is slightly more conservative than MAGeCk since we selected fewer genes. While our results show strong overlap, future work for corroborating the efficacy of these methods requires an in-depth look into the selected genes and the role they play in T-cell differentiation.  
+These results indicate that MCD is especially amenable to the bead genes as 21 genes overlap between the two methods. Moreover, MCD is slightly more conservative than MAGeCK since we selected fewer genes. While our results show strong overlap, future work for corroborating the efficacy of these methods requires an in-depth look into the selected genes and the role they play in T-cell differentiation.  
+
+# EnrichR {#sec:enrichr}
+
+```{r}
+dir <- getwd()
+bead_genes_DP <- read.table(paste0(dir,"/Test_outputs/Bead_DP_v_plasmid5k/Comparison_BeadDP_to_5k_plasmid_output.gene_summary.txt"), header = T)
+cc_genes_DP <- read.table(paste0(dir,"/Test_outputs/Cc_DP_v_plasmid5k/Comparison_CcDP_to_5k_plasmid_output.gene_summary.txt"), header = T)
+
+bead_genes_SP <- read.table(paste0(dir,"/Test_outputs/Bead_SP_v_plasmid5k/Comparison_BeadSP_to_5k_plasmid_output.gene_summary.txt"), header = T)
+cc_genes_SP <- read.table(paste0(dir,"/Test_outputs/Cc_SP_v_plasmid5k/Comparison_CcSP_to_5k_plasmid_output.gene_summary.txt"), header = T)
+
+bead_genes_DN <- read.table(paste0(dir,"/Test_outputs/Bead_DN_v_plasmid5k/Comparison_BeadDN_to_5k_plasmid_output.gene_summary.txt"), header = T)
+cc_genes_DN <- read.table(paste0(dir,"/Test_outputs/Cc_DN_v_plasmid5k/Comparison_CcDN_to_5k_plasmid_output.gene_summary.txt"), header = T)
+```
+
+```{r}
+# inhibitors predicted by mageck include negatively selected DP and positively selected DN
+#DP
+bead_DP_sig <- bead_genes_DP %>% 
+  arrange(neg.rank) %>%
+  filter(neg.p.value<0.05)%>%
+  dplyr::select(id)
+cc_DP_sig <- cc_genes_DP %>% 
+  arrange(neg.rank) %>%
+  filter(neg.p.value<0.05)%>%
+  dplyr::select(id)
+bead_DP_sig$method <- rep('bead',nrow(bead_DP_sig))
+cc_DP_sig$method <- rep('cc',nrow(cc_DP_sig))
+bead_DP_sig$response <- rep('DP',nrow(bead_DP_sig))
+cc_DP_sig$response <- rep('DP',nrow(cc_DP_sig))
+
+#DN
+bead_DN_sig <- bead_genes_DN %>% 
+  arrange(pos.rank) %>%
+  filter(pos.p.value<0.05)%>%
+  dplyr::select(id)
+cc_DN_sig <- cc_genes_DN %>% 
+  arrange(pos.rank) %>%
+  filter(pos.p.value<0.05)%>%
+  dplyr::select(id)
+bead_DN_sig$method <- rep('bead',nrow(bead_DN_sig))
+cc_DN_sig$method <- rep('cc',nrow(cc_DN_sig))
+bead_DN_sig$response <- rep('DN',nrow(bead_DN_sig))
+cc_DN_sig$response <- rep('DN',nrow(cc_DN_sig))
+
+mageck_inhib <- bind_rows(bead_DP_sig,cc_DP_sig,bead_DN_sig,cc_DN_sig)
+
+mageck_inhib <- distinct(mageck_inhib,id,.keep_all = T) #253
+```
+
+```{r}
+#mcd_inhib <- readRDS("~/stat-c245f-hw2/inhibitors/mcd_inhib.rds")
+mcd_inhib <- readRDS("./inhibitors/mcd_inhib.rds")
+mcd_inhib$gene <- rownames(mcd_inhib)
+rownames(mcd_inhib) <- NULL
+
+# mcd_inhib_bead <- mcd_inhib %>%
+#   filter(Bead == "Inhibitor") #38
+```
+
+
+```{r}
+mageck_inhib_bead <- mageck_inhib %>%
+  filter(method == "bead" & response == "DP") #69
+websiteLive <- TRUE
+dbs <- c("GO_Molecular_Function_2021", "GO_Cellular_Component_2021", "GO_Biological_Process_2021", "Human_Phenotype_Ontology")
+```
+
+
+```{r}
+# if (websiteLive) {
+#     enriched1 <- enrichr(mageck_inhib_bead$id, dbs)
+#     saveRDS(enriched1, "enriched1.rds")
+# }
+```
+
+
+```{r}
+enriched1 <- readRDS("enriched1.rds")
+p1 <- if (websiteLive) plotEnrich(enriched1[[1]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "GO_Molecular_Function")
+p2 <- if (websiteLive) plotEnrich(enriched1[[2]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "GO_Cellular_Component")
+p3 <- if (websiteLive) plotEnrich(enriched1[[3]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "GO_Biological_Process")
+p4 <- if (websiteLive) plotEnrich(enriched1[[4]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "Human_Phenotype_Ontology (Bead)")
+# p1;p2;p3;p4
+```
+
+
+```{r, message=FALSE}
+# if (websiteLive) {
+#     enriched2 <- enrichr(mcd_inhib$gene, dbs)
+#     saveRDS(enriched2, "enriched2.rds")
+# }
+```
+
+
+```{r, message=FALSE}
+enriched2 <- readRDS("enriched2.rds")
+p5 <- if (websiteLive) plotEnrich(enriched2[[1]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "GO_Molecular_Function")
+p6 <- if (websiteLive) plotEnrich(enriched2[[2]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "GO_Cellular_Component")
+p7 <- if (websiteLive) plotEnrich(enriched2[[3]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "GO_Biological_Process")
+p8 <- if (websiteLive) plotEnrich(enriched2[[4]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "Human_Phenotype_Ontology")
+
+# p5;p6;p7;p8
+```
+
+
+We performed an enrichment analysis of the essential genes predicted by MCD and by MAGeCK (DP genes with a negative p.value <  0.05) using `enrichR`, an online gene enrichment tool created by @kuleshov2016enrichr. `enrichR` accepts a list of genes and compares them against existing annotated gene sets. This provides domain knowledge for our genes and allows us to assess whether our genes have biological meaning relative to T-cell differentiation. 
+
+
+As shown in Figure \blue{\ref{fig:enrichr}} below, biological processes seemingly relevant to T cell development appear as significantly enriched for both sets of gene predictions. These processes include T cell receptor signaling and regulation of stem cell differential. 
+
+Similarly, disease phenotypes relevant to T cell malfunction such as T lymphocytopenia and abnormality of T cells appear at the top of enriched terms for both sets of genes. While some enriched terms for genes predicted by MCD seem less relevant compared to those for MAGeCK, both methods are able to discover the essential genes reasonably well.
+
+
+```{r enrichr, fig.width=12, fig.height=8, out.width='100%', fig.cap="Biological pathways and human phenotypes of genes selected by MAGeCK (top panels) and MCD (bottom panel)."}
+mageck_inhib_graph <- ggarrange(p3,p4, ncol =2)
+mageck_inhib_graph <- annotate_figure(mageck_inhib_graph, left = text_grob("MAGeCK", rot = 90))
+mcd_inhib_graph <- ggarrange(p7,p8, ncol =2)
+mcd_inhib_graph <- annotate_figure(mcd_inhib_graph, left = text_grob("MCD", rot = 90))
+
+fig <- ggarrange(mageck_inhib_graph,mcd_inhib_graph, nrow = 2)
+fig
+```
 
 
 
