@@ -130,7 +130,7 @@ pairs(count_matrix_log, pch = 10, lower.panel = NULL)
 <!-- p1;p2 -->
 <!-- ``` -->
 
-# ```{r}
+```{r}
 # p3 <- ggplot(data = count_matrix_log, aes(x = CcSP, y = CcDN))+
 #   geom_point()+
 #   labs(title = "SP vs DN (Cc)")
@@ -140,7 +140,7 @@ pairs(count_matrix_log, pch = 10, lower.panel = NULL)
 #   labs(title = "SP vs DP (Cc)")
 # 
 # p3;p4
-# ```
+```
 
 <!-- # distribution of total cell counts (DP+SP+DN) -->
 <!-- ```{r} -->

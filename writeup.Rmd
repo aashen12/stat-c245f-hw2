@@ -48,8 +48,10 @@ setwd("/Users/andyshen/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Desk
 count_data <- read.csv('./Count_output/Comparison_to_5k_plasmid.count_normalized.txt', sep='\t')
 count_output <- read.csv('./Count_output/Comparison_to_5k_plasmid.count.txt', sep='\t')
 count_matrix <- count_output[,3:9]
-cor <-cor(count_matrix)
+cor <- cor(count_matrix)
 col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+count_matrix_log <- log(count_output[,3:9]+0.00000001)
+cor_log <-cor(count_matrix_log)
 
 
 mcd <- readRDS("mcd_df.rds")
@@ -90,6 +92,15 @@ However, the advent of CRISPR assay sequencing technologies enables domain exper
 Our data is presented as a series of counts per gene. These counts correspond to the number of cells observed per gene. These cells have markers which indicate the presence of T-cells. A double-negative (DN) count indicates the presence of a cell with no T-cell markers. A single-positive (SP) count indicates one T-cell marker, while a double-positive (DP) count indicates the presence of two T-cell markers, the clearest evidence of T-cell detection. 
 
 While each sgRNA has a fixed efficiency, we are not provided that information, so this analysis assumes that the efficiency is fixed across all sgRNAs.
+
+# Exploratory Data Analysis
+
+We compute the column-wise correlation between all columns in our data set in order to get an initial sense on how our data is distributed. These values are summarized in Figure \blue{\ref{fig:colcorr}}. We observe that that there exists a moderately strong association between some columns, namely between SP columns and other columns. These associations justify using the joint distribution of the columns as opposed to pairwise column distributions.
+
+```{r colcorr, fig.cap="Correlation of all columns with each other in nornalized data set.", out.width='85%'}
+corrplot(cor_log, type = "upper", method = "number")
+```
+
 
 
 
