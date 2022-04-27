@@ -45,6 +45,7 @@ library(stringr)
 library(MASS)
 library(kableExtra)
 library(knitr)
+library(docxtools)
 ```
 
 ```{r}
@@ -188,9 +189,9 @@ pval_hist <- ggplot(data.frame(pval = mcd_pval), aes(x=pval)) + geom_histogram()
 dist_hist + pval_hist
 ```
 
-## Tables
+## Statistically Significant Genes
 
-We present a table with the top 10 genes by lowest Benjamini-Yekutieli adjusted p-values from our MCD technique side-by-side with their corresponding p-values from MAGeCK's DP negative p values. We can see that the p-values from our method are smaller by many orders of magnitude and hence offer greater power since they take advantage of using all of the columns in the data at once.
+We found 53 significant genes with our MCD technique when using a p value cutoff of 0.05. Below, we present a table with the top 10 of those genes by lowest Benjamini-Yekutieli adjusted p-values side-by-side with their corresponding p-values from MAGeCK's DP negative p values. We can see that the p-values from our method are smaller by many orders of magnitude and hence offer greater power since they take advantage of using all of the columns in the data at once.
 
 ```{r}
 mcd_gne <- mcd_df %>% arrange(pval) %>% head(10)
@@ -202,11 +203,12 @@ ccdp_gne <- cc_dp %>% filter(id %in% mcd_gne$gene) %>%
   dplyr::rename(gene = id, MAGeCK_Cc_pval = neg.p.value)
 
 tbl <- full_join(full_join(mcd_gne, beaddp_gne), ccdp_gne)
+
+tbl$pval <- formatC(tbl$pval, format = "e", digits=3)
+
 tbl %>% knitr::kable(digits = 3)
 #saveRDS(tbl, "pval_tbl.rds")
 ```
-
-## Top Genes
 
 The genes CD5 and NOTCH1 are selected in all four models. The genes CRELD2 and GGTLC2 are the top two genes from the MCD method. All of these four genes except for GGTLC2 are also considered significant by MAGeCK using an adjusted p-value cut off of 0.05. In Figure \blue{\ref{fig:top_genes}}, we can see a significant drop in logged counts for CcDP compared to CcDN and CcSP and also note a similar but mild to moderate drop in logged counts using the Bead method.
 
@@ -414,7 +416,15 @@ We discover nine genes that are classified as inhibitors by both the Bead and ce
 
 # Discussion
 
-We have derived and tested a novel method for finding genes that are potential T cell inhibitors. Our method yields similar results to prior methods like MAGeCK, but with potentially higher statistical power. Similar to MAGeCK, our method also produces a gene list that is associated with T cell and stem cell differentation. That said, our method needs further investigation to determine its validity, as do the genes in our gene list that do not appear in MAGeCK.
+We have derived and tested a novel method for finding genes that are potential T cell inhibitors. Our method yields similar results to prior methods like MAGeCK, but with potentially higher statistical power. Similar to MAGeCK, our method also produces a gene list that is associated with not only the T cell receptor signaling pathway but also with an abnormality in T cell numbers. That said, our method needs further investigation to determine its validity, as do the genes in our gene list that do not appear in MAGeCK.
+
+# Individual Contributions
+
+Florica Constantine conceived of and wrote the code for all four models used in the paper, contributed to the exploratory data analysis, and contributed to the writing for the paper.
+
+Lingrong Jin contributed to the exploratory data analyses, performed the enrichR analysis of the data, and contributed to the writing of the paper.
+
+Andy Shen performed the analysis checking for which genes are potential T cell inhibitors, created the table outputting the top performing genes, and contributed to the writing of the paper.
 
 # References
 
