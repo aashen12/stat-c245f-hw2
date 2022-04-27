@@ -96,7 +96,7 @@ While each sgRNA has a fixed efficiency, we are not provided that information, s
 
 # Exploratory Data Analysis
 
-We first log transform the count data and put it in units of counts per million (CPM).
+We first log transform the count data.
 
 Next, we visualize the data through a kernel density plot in Figure \blue{\ref{fig:kern_box}} to get a sense for the distribution of each of the columns. Note that the distribution of control values is sharply peaked relative to the other columns with cell markers. Moreover, the cells that underwent the Cc process have relatively flatter densities than those that underwent the Bead process. None of these distributions look particularly Gaussian, though they generally have similar shapes. Note that CcDP has a second minor mode close to zero, perhaps corresponding to genes that are T cell inhibitors.
 
@@ -105,11 +105,11 @@ When we visualize the same data with boxplots, also in Figure \blue{\ref{fig:ker
 ```{r kern_box, fig.cap="Kernel density plot and box plots of the logged count data"}
 p_kern <- ggplot(log_count_melt, aes(x=count, fill=type))
 p_kern <- p_kern + geom_density(alpha = 0.5, lwd = 1, linetype = 1)
-p_kern <- p_kern + labs(x = "log(CPM)", y="Density", fill="")
+p_kern <- p_kern + labs(x = "Log Count", y="Density", fill="")
 
 p_box <- ggplot(log_count_melt, aes(x=type, y=count, fill=type))
 p_box <- p_box + geom_boxplot()
-p_box <- p_box + labs(x = "Cell Marker", y = "log(CPM)")
+p_box <- p_box + labs(x = "Cell Marker", y = "Log Count")
 p_box <- p_box + theme(legend.position = "none")
 
 p_kern / p_box
@@ -117,7 +117,7 @@ p_kern / p_box
 
 We compute the column-wise correlation between all columns in our data set in order to get an initial sense on how our data is distributed. These values are summarized in Figure \blue{\ref{fig:colcorr}}. We observe that that there exists a moderately strong association between some columns, namely between SP columns and other columns. These associations support using the joint distribution of the columns as opposed to pairwise column distributions.
 
-```{r colcorr, fig.height=5, fig.width=7, fig.cap="Correlation of all columns with each other in nornalized data set.", out.width='55%'}
+```{r colcorr, fig.height=5, fig.width=7, fig.cap="Correlation of all columns with each other in nornalized data set", out.width='55%'}
 corrplot(cor(log_count_mat, method='spearman'), type = "upper", method = "number")
 ```
 
@@ -212,37 +212,37 @@ tbl %>% knitr::kable(digits = 3)
 
 The genes CD5 and NOTCH1 are selected in all four models. The genes CRELD2 and GGTLC2 are the top two genes from the MCD method. All of these four genes except for GGTLC2 are also considered significant by MAGeCK using an adjusted p-value cut off of 0.05. In Figure \blue{\ref{fig:top_genes}}, we can see a significant drop in logged counts for CcDP compared to CcDN and CcSP and also note a similar but mild to moderate drop in logged counts using the Bead method.
 
-```{r top_genes, fig.cap="Significant genes from MCD model"}
+```{r}
 plot_df <- log_count_melt[which(log_count_melt$gene == "CD5"), ]
 p1 <- ggplot(plot_df, aes(x=marker, y=count, colour=as.factor(tech), group=interaction(as.factor(sgRNA), as.factor(tech))))
 p1 <- p1 + geom_point()
 p1 <- p1 + geom_line()
-p1 <- p1 + labs(title = "CD5", x = "Cell Marker", y = "log(CPM)", colour = "")
+p1 <- p1 + labs(title = "CD5", x = "Cell Marker", y = "Log Count", colour = "")
 p1 <- p1 + theme(plot.title = element_text(hjust = 0.5, face="bold", size=13))
 
 plot_df <- log_count_melt[which(log_count_melt$gene == "NOTCH1"), ]
 p2 <- ggplot(plot_df, aes(x=marker, y=count, colour=as.factor(tech), group=interaction(as.factor(sgRNA), as.factor(tech))))
 p2 <- p2 + geom_point()
 p2 <- p2 + geom_line()
-p2 <- p2 + labs(title = "NOTCH1", x = "Cell Marker", y = "log(CPM)", colour = "")
+p2 <- p2 + labs(title = "NOTCH1", x = "Cell Marker", y = "Log Count", colour = "")
 p2 <- p2 + theme(plot.title = element_text(hjust = 0.5, face="bold", size=13))
 
 p1 / p2
 ```
 
-```{r}
+```{r top_genes, fig.cap="Significant genes from MCD model"}
 plot_df <- log_count_melt[which(log_count_melt$gene == "CRELD2"), ]
 p3 <- ggplot(plot_df, aes(x=marker, y=count, colour=as.factor(tech), group=interaction(as.factor(sgRNA), as.factor(tech))))
 p3 <- p3 + geom_point()
 p3 <- p3 + geom_line()
-p3 <- p3 + labs(title = "CRELD2", x = "Cell Marker", y = "log(CPM)", colour = "")
+p3 <- p3 + labs(title = "CRELD2", x = "Cell Marker", y = "Log Count", colour = "")
 p3 <- p3 + theme(plot.title = element_text(hjust = 0.5, face="bold", size=13))
 
 plot_df <- log_count_melt[which(log_count_melt$gene == "GGTLC2"), ]
 p4 <- ggplot(plot_df, aes(x=marker, y=count, colour=as.factor(tech), group=interaction(as.factor(sgRNA), as.factor(tech))))
 p4 <- p4 + geom_point()
 p4 <- p4 + geom_line()
-p4 <- p4 + labs(title = "GGTLC2", x = "Cell Marker", y = "log(CPM)", colour = "")
+p4 <- p4 + labs(title = "GGTLC2", x = "Cell Marker", y = "Log Count", colour = "")
 p4 <- p4 + theme(plot.title = element_text(hjust = 0.5, face="bold", size=13))
 
 p3 / p4
@@ -376,7 +376,7 @@ if (websiteLive) {
 p1 <- if (websiteLive) plotEnrich(enriched1[[1]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "GO_Molecular_Function")
 p2 <- if (websiteLive) plotEnrich(enriched1[[2]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "GO_Cellular_Component")
 p3 <- if (websiteLive) plotEnrich(enriched1[[3]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "GO_Biological_Process")
-p4 <- if (websiteLive) plotEnrich(enriched1[[4]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "Human_Phenotype_Ontology (Bead)")
+p4 <- if (websiteLive) plotEnrich(enriched1[[4]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "Human_Phenotype_Ontology")
 # p1;p2;p3;p4
 ```
 
