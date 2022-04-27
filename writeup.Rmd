@@ -202,7 +202,7 @@ ccdp_gne <- cc_dp %>% filter(id %in% mcd_gne$gene) %>%
   dplyr::rename(gene = id, MAGeCK_Cc_pval = neg.p.value)
 
 tbl <- full_join(full_join(mcd_gne, beaddp_gne), ccdp_gne)
-tbl
+tbl %>% knitr::kable(digits = 3)
 #saveRDS(tbl, "pval_tbl.rds")
 ```
 

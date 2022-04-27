@@ -1,0 +1,59 @@
+---
+title: "Table of p-values"
+author: "Andy Shen"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+# read in data
+count_data <- read.csv('./Count_output/Comparison_to_5k_plasmid.count_normalized.txt', sep='\t')
+count_output <- read.csv('./Count_output/Comparison_to_5k_plasmid.count.txt', sep='\t')
+count_matrix <- count_output[,3:9]
+cor <- cor(count_matrix)
+col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
+count_matrix_log <- log(count_output[,3:9]+0.00000001)
+cor_log <-cor(count_matrix_log)
+
+
+mcd <- readRDS("mcd_df.rds")
+mh <- readRDS("mh_df.rds")
+tmcd <- readRDS("tmcd_df.rds")
+tmh <- readRDS("tmh_df.rds")
+```
+
+```{r}
+path_beaddp <- "./Test_outputs/Bead_DP_v_plasmid5k/"
+path_ccdp <- "./Test_outputs/Cc_DP_v_plasmid5k/"
+path_beaddn <- "./Test_outputs/Bead_DN_v_plasmid5k/"
+path_ccdn <- "./Test_outputs/Cc_DN_v_plasmid5k/"
+
+bead_dp <- read.table(paste0(path_beaddp,"Comparison_BeadDP_to_5k_plasmid_output.gene_summary.txt"), 
+                       header = TRUE)
+bead_dn <- read.table(paste0(path_beaddn,"Comparison_BeadDN_to_5k_plasmid_output.gene_summary.txt"), 
+                       header = TRUE)
+cc_dp <- read.table(paste0(path_ccdp,"Comparison_CcDP_to_5k_plasmid_output.gene_summary.txt"), 
+                       header = TRUE)
+cc_dn <- read.table(paste0(path_ccdn,"Comparison_CcDN_to_5k_plasmid_output.gene_summary.txt"), 
+                       header = TRUE)
+```
+
+I want to just have a table of top 10 genes from MCD and then the corresponding pvalues. And then another column with the Mageck p values too. Since Ben was saying our method will hopefully have more power (smaller p values).
+
+```{r}
+mcd_gne <- mcd %>% arrange(pval) %>% head(10)
+beaddp_gne <- bead_dp %>% filter(id %in% mcd_gne$gene) %>% 
+  dplyr::select(id, neg.p.value, bead_pval = neg.p.value) %>% 
+  dplyr::rename(gene = id)
+ccdp_gne <- cc_dp %>% filter(id %in% mcd_gne$gene) %>% 
+  dplyr::select(id, neg.p.value) %>% 
+  dplyr::rename(gene = id, cc_pval = neg.p.value)
+
+tbl <- full_join(full_join(mcd_gne, beaddp_gne), ccdp_gne)
+saveRDS(tbl, "pval_tbl.rds")
+```
+
