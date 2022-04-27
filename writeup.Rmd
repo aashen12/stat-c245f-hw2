@@ -1,5 +1,5 @@
 ---
-title: "CRISPR"
+title: "Identifying Genes that Inhibit T Cell Differentiation using the Mahalanobis Distance and the Minimum Covariance Determinant"
 subtitle: "Final Project: Statistics C245F"
 author: "Florica Constantine, Lingrong Jin, Andy Shen"
 header-includes:
@@ -11,21 +11,11 @@ output:
 bibliography: bibliography.bib
 ---
 
-```{r setup, include=FALSE}
-rm(list = ls())
-library(tidyverse)
-library(GGally)
-library(corrplot)
-library(cvms)
-library(ggpubr)
-library(reshape)
-library(limma)
-library(enrichR)
-library(patchwork)
-library(ggVennDiagram)
-library(MASS)
-library(kableExtra)
-library(knitr)
+\newcommand{\blue}{\textcolor{blue}}
+\newcommand{\red}{\textcolor{red}}
+\newcommand{\bb}{\textbf}
+
+```{r, include=FALSE}
 knitr::opts_chunk$set(
   echo = FALSE,  # don't print the code chunk
   warning = FALSE,  # don't print warnings
@@ -35,37 +25,52 @@ knitr::opts_chunk$set(
   fig.align = "center",  # always align figure in center
   fig.pos = "H",  # always plot figure at the exact location of the code chunk
   cache = FALSE) 
-setwd("/Users/andyshen/Library/Mobile Documents/com~apple~CloudDocs/Desktop/Desktop - Andy’s MacBook Pro/UC Berkeley/spring-2022/stat-c245f/stat-c245f-hw2")
 ```
 
-\newcommand{\blue}{\textcolor{blue}}
-\newcommand{\red}{\textcolor{red}}
-\newcommand{\bb}{\textbf}
 
+```{r setup, include=FALSE}
+rm(list = ls())
+library(tidyverse)
+library(GGally)
+library(corrplot)
+library(cvms)
+library(ggpubr)
+library(reshape)
+library(edgeR)
+library(limma)
+library(enrichR)
+library(patchwork)
+library(ggVennDiagram)
+library(stringr)
+library(MASS)
+library(kableExtra)
+library(knitr)
+```
 
 ```{r}
-# read in data
+# Read in count data
 count_data <- read.csv('./Count_output/Comparison_to_5k_plasmid.count_normalized.txt', sep='\t')
-count_output <- read.csv('./Count_output/Comparison_to_5k_plasmid.count.txt', sep='\t')
-count_matrix <- count_output[,3:9]
-cor <- cor(count_matrix)
-col <- colorRampPalette(c("#BB4444", "#EE9988", "#FFFFFF", "#77AADD", "#4477AA"))
-count_matrix_log <- log(count_output[,3:9]+0.00000001)
-cor_log <-cor(count_matrix_log)
+count_data_orig <- read.csv('./Count_output/Comparison_to_5k_plasmid.count.txt', sep='\t')
 
+# Log count data
+log_count_mat <- cpm(count_data[, 3:ncol(count_data)], log=TRUE)
+log_count_data <- cbind(count_data[, 1:2], cpm(count_data[, 3:ncol(count_data)], log=TRUE))
 
-mcd <- readRDS("mcd_df.rds")
-mh <- readRDS("mh_df.rds")
-tmcd <- readRDS("tmcd_df.rds")
-tmh <- readRDS("tmh_df.rds")
+# Long format of log count data
+log_count_melt <- melt(log_count_data)
+colnames(log_count_melt) <- c('sgRNA', 'gene', 'type', 'count')
+log_count_melt$tech <- gsub("SP|DP|DN", "", log_count_melt$type)
+log_count_melt$marker <- gsub("Bead|Cc", "", log_count_melt$type)
+log_count_melt$type <- factor(log_count_melt$type, levels = c("BeadDN", "BeadSP", "BeadDP", "CcDN", "CcSP", "CcDP", "Plasmid5kCTRL"))
+log_count_melt$marker <- factor(log_count_melt$marker, levels = c("DN", "SP", "DP", "Plasmid5kCTRL"))
 ```
 
 ```{r}
+# Read in MAGeCK results
 path_beaddp <- "./Test_outputs/Bead_DP_v_plasmid5k/"
 path_ccdp <- "./Test_outputs/Cc_DP_v_plasmid5k/"
 path_beaddn <- "./Test_outputs/Bead_DN_v_plasmid5k/"
 path_ccdn <- "./Test_outputs/Cc_DN_v_plasmid5k/"
-
 bead_dp <- read.table(paste0(path_beaddp,"Comparison_BeadDP_to_5k_plasmid_output.gene_summary.txt"), 
                        header = TRUE)
 bead_dn <- read.table(paste0(path_beaddn,"Comparison_BeadDN_to_5k_plasmid_output.gene_summary.txt"), 
@@ -76,45 +81,176 @@ cc_dn <- read.table(paste0(path_ccdn,"Comparison_CcDN_to_5k_plasmid_output.gene_
                        header = TRUE)
 ```
 
-
-
-
 # Introduction
 
-The discovery of the Cas9 clustered regularly interspaced short palindromic repeats (CRISPR) enzyme by @ran2013genome has revolutionized the world of genomics and bioinformatics. The ability to perform genome editing and cleaving opens the door to an endless array of biological research that explores the effect of Cas9.
+The technique of genome editing and cleaving with the Cas9 clustered regularly interspaced short palindromic repeats (CRISPR) enzyme has revolutionized the world of genomics and bioinformatics [@ran2013genome]. This has opened the door to addressing an array of biological research questions that were previously intractable. One method built around the abilities of CRISPR is Model-based Analysis of Genome-wide CRISPR/Cas9 Knockout (MAGeCK) [@li2014mageck]. This technique identifes both positively and negatively-regulated genes in a robust and powerful manner. 
 
-One method is the Model-based Analysis of Genome-wide CRISPR/Cas9 Knockout (MAGeCK) proposed by @li2014mageck. This technique utilizes the unique ability of Cas9 by identifying both positively and negatively-regulated genes in a robust and powerful manner. Here we utilize the output of MAGeCK on a CRISPR assay for children with Severe combined immunodeficiency (SCID). This rare disorder directly inhibits T-cells from being created, significantly altering a child's immune system. Such a disorder is typically fatal^[https://www.niaid.nih.gov/diseases-conditions/severe-combined-immunodeficiency-scid].
-
-However, the advent of CRISPR assay sequencing technologies enables domain experts to investigate the genomic origins of SCID and discover genes that play a role in immune system development. In this process, a guide RNA (sgRNA) enters the genome with the intention to target a gene. A dissipating guide indicates that the sgRNA, and hence its target gene, was important for the specific cell-line. These discoveries point out the potential usefulness of certain genes in T-cell differentiation.
+Here, we use the output of MAGeCK on a CRISPR assay for children with Severe combined immunodeficiency (SCID). This rare disorder directly inhibits T cells from being created, significantly altering a child's immune system. Such a disorder is typically fatal^[https://www.niaid.nih.gov/diseases-conditions/severe-combined-immunodeficiency-scid]. However, the advent of CRISPR assay sequencing technologies enables domain experts to investigate the genomic origins of SCID and discover genes that play a role in immune system development. In this process, a guide RNA (sgRNA) enters the genome with the intention to target a gene. A dissipating guide indicates that the sgRNA, and hence its target gene, was important for the specific cell-line. These discoveries point out the potential usefulness of certain genes in T cell differentiation.
 
 # Data Organization
 
-Our data is presented as a series of counts per gene. These counts correspond to the number of cells observed per gene. These cells have markers which indicate the presence of T-cells. A double-negative (DN) count indicates the presence of a cell with no T-cell markers. A single-positive (SP) count indicates one T-cell marker, while a double-positive (DP) count indicates the presence of two T-cell markers, the clearest evidence of T-cell detection. 
+Our data is presented as a series of counts per gene that are obtained through two different techniques: Bead and Co-culture (Cc). These counts correspond to the number of cells observed per gene. These cells have markers that indicate the presence of T cells. A double-negative (DN) count indicates the presence of a cell with no T cell markers, a single-positive (SP) count indicates one T cell marker, while a double-positive (DP) count indicates the presence of two T cell markers--the clearest evidence of T cell detection. The cells with DN markers generally do not become T cells. However, the cells with SP markers sometimes differentiate into T cells, while DP markers are cells that are expected to become T cells.
 
 While each sgRNA has a fixed efficiency, we are not provided that information, so this analysis assumes that the efficiency is fixed across all sgRNAs.
 
 # Exploratory Data Analysis
 
-We compute the column-wise correlation between all columns in our data set in order to get an initial sense on how our data is distributed. These values are summarized in Figure \blue{\ref{fig:colcorr}}. We observe that that there exists a moderately strong association between some columns, namely between SP columns and other columns. These associations justify using the joint distribution of the columns as opposed to pairwise column distributions.
+We first log transform the count data and put it in units of counts per million (CPM).
 
-```{r colcorr, fig.height=5, fig.width=7, fig.cap="Correlation of all columns with each other in nornalized data set.", out.width='55%'}
-corrplot(cor_log, type = "upper", method = "number")
+Next, we visualize the data through a kernel density plot in Figure \blue{\ref{fig:kern_box}} to get a sense for the distribution of each of the columns. Note that the distribution of control values is sharply peaked relative to the other columns with cell markers. Moreover, the cells that underwent the Cc process have relatively flatter densities than those that underwent the Bead process. None of these distributions look particularly Gaussian, though they generally have similar shapes. Note that CcDP has a second minor mode close to zero, perhaps corresponding to genes that are T cell inhibitors.
+
+When we visualize the same data with boxplots, also in Figure \blue{\ref{fig:kern_box}}, we see that the log counts for CcDP are noticeably lower with a wider spread than those for CcDN and CcSP. This behavior does not appear to be the case for the Bead method.
+
+```{r kern_box, fig.cap="Kernel density plot and box plots of the logged count data"}
+p_kern <- ggplot(log_count_melt, aes(x=count, fill=type))
+p_kern <- p_kern + geom_density(alpha = 0.5, lwd = 1, linetype = 1)
+p_kern <- p_kern + labs(x = "log(CPM)", y="Density", fill="")
+
+p_box <- ggplot(log_count_melt, aes(x=type, y=count, fill=type))
+p_box <- p_box + geom_boxplot()
+p_box <- p_box + labs(x = "Cell Marker", y = "log(CPM)")
+p_box <- p_box + theme(legend.position = "none")
+
+p_kern / p_box
 ```
 
+We compute the column-wise correlation between all columns in our data set in order to get an initial sense on how our data is distributed. These values are summarized in Figure \blue{\ref{fig:colcorr}}. We observe that that there exists a moderately strong association between some columns, namely between SP columns and other columns. These associations support using the joint distribution of the columns as opposed to pairwise column distributions.
 
+```{r colcorr, fig.height=5, fig.width=7, fig.cap="Correlation of all columns with each other in nornalized data set.", out.width='55%'}
+corrplot(cor(log_count_mat, method='spearman'), type = "upper", method = "number")
+```
 
+## Model
 
+The Mahalanobis distance is a distance between samples and a multivariate distribution with a given mean and covariance [@chandra1936generalised]. For a given sample $x$, mean vector $\mu$, and covariance $\Sigma$, we have that the squared distance between $x$ and $\mu$ is given by
+$$d(x; \mu, \Sigma)^2 = (x - \mu)^T \Sigma^{-1} (x - \mu).$$
+Given data, we can compute an estimate of the mean and covariance and hence find how far each sample is from the mean of the samples. That is, we have a method for detecting outliers in multivariate data, and, this method takes into account the correlations between the columns in the dataset. When the data follow a $d$-dimensional multivariate Gaussian distribution, we have that the squared Mahalanobis distance follows a $\chi^2$ distribution with $d$ degrees of freedom [@ghorbani2019mahalanobis]. 
 
-# Inhibitors of T-Cell Differentiation
+In this setting, we believe that the majority of genes do not suppress the development of $T$-cells. That is, the genes that do are outliers with respect to some metric. We investigate four variations of the Mahalanobis distance as our metric of choice. First, we look at the ordinary Mahalanobis distance. Second, noting that if there are outliers in the data, we should not include them in the computation of the mean and covariance, we replace the mean and covariance with those computed by the Minimum Covariance Determinant (MCD) technique and use these in the Mahalanobis distance computation [@hubert2010minimum]. We use 80% as our window size in the MCD technique. In future work, this parameter can be tuned. Third and fourth, inspired by the approach in [@anderson2018xpca], we transform the data to 'look Gaussian' and repeat the previous two approaches--our hope is that perhaps transforming the data might lead to more accurate $p$-values or greater power. That is, we compute an empirical distribution function (ECDF) for each column, evaluate all rows in the ECDF, and then apply the inverse distribution function for a standard Gaussian distribution. That is, if $\widehat{F}$ is the ECDF of the data, and $G$ is the standard Gaussian distribution function, we apply $\widehat{F}(G^{-1}(x))$ to each data point $x$. We repeat this for each column. 
+
+We plot the squared distances and associated p values in Figure \blue{\ref{fig:dist_pval}} and note that there is a long right tail for the distances, i.e., there are outliers in this data set. The p value distribution is roughly bimodal with some p values close to zero and the majority close to one.
+
+```{r dist_pval, fig.height=3, fig.width=5, fig.cap="MCD distances and associated p values"}
+outlier_data <- log_count_data[, c(3:9)]
+p_method <- "BY"
+sig_level <- 0.05
+mh_df <- ncol(outlier_data)
+
+# Mahalanobis distance for outlier detection
+# Note that R gives you the squared distance
+mh_dist <- mahalanobis(outlier_data, center=colMeans(outlier_data), cov=cov(outlier_data))
+# Chi Square assumption on data
+mh_pval <- p.adjust(1 - pchisq(mh_dist, mh_df), method=p_method)
+
+# Robust version of above using Minimum Covariance Determinant
+mcd_quantile <- 0.8 # Throw out 1 - this of data
+mcd_output <- cov.mcd(outlier_data, quantile.used=nrow(outlier_data) * mcd_quantile)
+mcd_dist <- mahalanobis(outlier_data, center=mcd_output$center, cov=mcd_output$cov)
+mcd_pval <- p.adjust(1 - pchisq(mcd_dist, mh_df), method=p_method)
+
+# See XPCA paper for idea https://arxiv.org/abs/1808.07510
+# Basically, transform the data to look Gaussian
+# Compute ECDF -> Apply Inverse Gaussian CDF
+transformed_data <- 1 * outlier_data
+for (idx in 1:ncol(outlier_data)) {
+  # Compute ECDF
+  # Add points below min and above max to avoid infinities
+  fcn <- ecdf(c(outlier_data[, idx], min(outlier_data[, idx]) - sd(outlier_data[, idx]), max(outlier_data[, idx]) + sd(outlier_data[, idx])))
+  transformed_data[, idx] <- qnorm(fcn(outlier_data[, idx]))
+}
+# Repeat Mahalanobis distance with transformed data
+tmh_dist <- mahalanobis(transformed_data, center=colMeans(transformed_data, na.rm=TRUE), cov=cov(transformed_data))
+tmh_pval <- p.adjust(1 - pchisq(tmh_dist, mh_df), method=p_method)
+# Repeat MCD approach for transformed data
+tmcd_output <- cov.mcd(transformed_data, quantile.used=nrow(transformed_data) * mcd_quantile)
+tmcd_dist <- mahalanobis(transformed_data, center=tmcd_output$center, cov=tmcd_output$cov)
+tmcd_pval <- p.adjust(1 - pchisq(tmcd_dist, mh_df), method=p_method)
+
+mh_df <- data.frame(gene=count_data[which(mh_pval < sig_level), "Gene"], pval=mh_pval[which(mh_pval < sig_level)])
+mh_df <- mh_df[order(mh_df$pval), ]
+saveRDS(mh_df, file = "mh_df.rds")
+
+mcd_df <- data.frame(gene=count_data[which(mcd_pval < sig_level), "Gene"], pval=mcd_pval[which(mcd_pval < sig_level)])
+mcd_df <- mcd_df[order(mcd_df$pval), ]
+saveRDS(mcd_df, file = "mcd_df.rds")
+
+tmh_df <- data.frame(gene=count_data[which(tmh_pval < sig_level), "Gene"], pval=tmh_pval[which(tmh_pval < sig_level)])
+tmh_df <- tmh_df[order(tmh_df$pval), ]
+saveRDS(tmh_df, file = "tmh_df.rds")
+
+tmcd_df <- data.frame(gene=count_data[which(tmcd_pval < sig_level), "Gene"], pval=tmcd_pval[which(tmcd_pval < sig_level)])
+tmcd_df <- tmcd_df[order(tmcd_df$pval), ]
+saveRDS(tmcd_df, file = "tmcd_df.rds")
+
+dist_hist <- ggplot(data.frame(dist = mcd_dist), aes(x=dist)) + geom_histogram() + labs(x = "distance", y = "count")
+pval_hist <- ggplot(data.frame(pval = mcd_pval), aes(x=pval)) + geom_histogram() + labs(x = "p-value", y = "count")
+
+dist_hist + pval_hist
+```
+
+## Tables
+
+We present a table with the top 10 genes by lowest Benjamini-Yekutieli adjusted p-values from our MCD technique side-by-side with their corresponding p-values from MAGeCK's DP negative p values. We can see that the p-values from our method are smaller by many orders of magnitude and hence offer greater power since they take advantage of using all of the columns in the data at once.
+
+```{r}
+mcd_gne <- mcd_df %>% arrange(pval) %>% head(10)
+beaddp_gne <- bead_dp %>% filter(id %in% mcd_gne$gene) %>% 
+  dplyr::select(id, neg.p.value, MAGeCK_Bead_pval = neg.p.value) %>% 
+  dplyr::rename(gene = id)
+ccdp_gne <- cc_dp %>% filter(id %in% mcd_gne$gene) %>% 
+  dplyr::select(id, neg.p.value) %>% 
+  dplyr::rename(gene = id, MAGeCK_Cc_pval = neg.p.value)
+
+tbl <- full_join(full_join(mcd_gne, beaddp_gne), ccdp_gne)
+tbl
+#saveRDS(tbl, "pval_tbl.rds")
+```
+
+## Top Genes
+
+The genes CD5 and NOTCH1 are selected in all four models. The genes CRELD2 and GGTLC2 are the top two genes from the MCD method. All of these four genes except for GGTLC2 are also considered significant by MAGeCK using an adjusted p-value cut off of 0.05. In Figure \blue{\ref{fig:top_genes}}, we can see a significant drop in logged counts for CcDP compared to CcDN and CcSP and also note a similar but mild to moderate drop in logged counts using the Bead method.
+
+```{r top_genes, fig.cap="Significant genes from MCD model"}
+plot_df <- log_count_melt[which(log_count_melt$gene == "CD5"), ]
+p1 <- ggplot(plot_df, aes(x=marker, y=count, colour=as.factor(tech), group=interaction(as.factor(sgRNA), as.factor(tech))))
+p1 <- p1 + geom_point()
+p1 <- p1 + geom_line()
+p1 <- p1 + labs(title = "CD5", x = "Cell Marker", y = "log(CPM)", colour = "")
+p1 <- p1 + theme(plot.title = element_text(hjust = 0.5, face="bold", size=13))
+
+plot_df <- log_count_melt[which(log_count_melt$gene == "NOTCH1"), ]
+p2 <- ggplot(plot_df, aes(x=marker, y=count, colour=as.factor(tech), group=interaction(as.factor(sgRNA), as.factor(tech))))
+p2 <- p2 + geom_point()
+p2 <- p2 + geom_line()
+p2 <- p2 + labs(title = "NOTCH1", x = "Cell Marker", y = "log(CPM)", colour = "")
+p2 <- p2 + theme(plot.title = element_text(hjust = 0.5, face="bold", size=13))
+
+p1 / p2
+```
+
+```{r}
+plot_df <- log_count_melt[which(log_count_melt$gene == "CRELD2"), ]
+p3 <- ggplot(plot_df, aes(x=marker, y=count, colour=as.factor(tech), group=interaction(as.factor(sgRNA), as.factor(tech))))
+p3 <- p3 + geom_point()
+p3 <- p3 + geom_line()
+p3 <- p3 + labs(title = "CRELD2", x = "Cell Marker", y = "log(CPM)", colour = "")
+p3 <- p3 + theme(plot.title = element_text(hjust = 0.5, face="bold", size=13))
+
+plot_df <- log_count_melt[which(log_count_melt$gene == "GGTLC2"), ]
+p4 <- ggplot(plot_df, aes(x=marker, y=count, colour=as.factor(tech), group=interaction(as.factor(sgRNA), as.factor(tech))))
+p4 <- p4 + geom_point()
+p4 <- p4 + geom_line()
+p4 <- p4 + labs(title = "GGTLC2", x = "Cell Marker", y = "log(CPM)", colour = "")
+p4 <- p4 + theme(plot.title = element_text(hjust = 0.5, face="bold", size=13))
+
+p3 / p4
+```
 
 ```{r}
 num_guide_df <- bead_dn
 num_guide_df$Gene <- num_guide_df$id
 full_counts_norm <- full_join(count_data, num_guide_df, by = "Gene")
 ```
-
-
-
 
 ```{r}
 # determining inhibitors vs promoters
@@ -137,15 +273,12 @@ extractInhibitors <- function(data) {
 }
 ```
 
-
-
 ```{r}
-mcd_inhib <- extractInhibitors(mcd)
-mh_inhib <- extractInhibitors(mh)
-tmcd_inhib <- extractInhibitors(tmcd)
-tmh_inhib <- extractInhibitors(tmh)
+mcd_inhib <- extractInhibitors(mcd_df)
+mh_inhib <- extractInhibitors(mh_df)
+tmcd_inhib <- extractInhibitors(tmcd_df)
+tmh_inhib <- extractInhibitors(tmh_df)
 ```
-
 
 ```{r, eval=FALSE}
 saveRDS(mcd_inhib, "./inhibitors/mcd_inhib.rds")
@@ -161,15 +294,6 @@ both_inhib <- mcd_inhib %>% data.frame() %>%
 # both are inhibitor
 ```
 
-
-
-In order to determine whether the genes we discovered using these four methods are inhibitors of T-cell differentiation or not, we compare the average difference in DN and DP T-cell counts with respect to the control. However, since each gene has a different number if guide RNAs assigned to it, we must scale the counts by the number of guide RNAs assigned to each gene. If the average difference of DN counts with the control is larger than that of DP with the control, we can infer the gene as an inhibitor, otherwise it is a promoter. 
-
-
-We discover 9 genes that are classified as inhibitor by both the Bead and cell co-culture. These genes are `r rownames(both_inhib)`. The biological significance of these genes is explained further in Section \blue{\ref{sec:enrichr}}.
-
-\red{Do we need to write more here?}
-
 To further compare our results with those of MAGeCK, we examine the overlapping significant genes between the two methods. Figure \blue{\ref{fig:vds}} shows the number of genes that overlap between the two methods. Note that for the MAGeCK algorithm, we only consider genes that were selected with negative p-value less than 0.05.
 
 ```{r}
@@ -178,15 +302,15 @@ cc_dp_sig <- cc_dp %>% filter(neg.p.value < 0.05)
 ```
 
 ```{r vds, fig.cap="Overlap of discovered genes from MAGeCK (Bead/Cc DP) and our MCD method."}
-vd_bdp_mcd <- ggVennDiagram(list("Bead DP" = bead_dp_sig$id, "MCD" = mcd$gene)) + 
+vd_bdp_mcd <- ggVennDiagram(list("Bead DP" = bead_dp_sig$id, "MCD" = mcd_df$gene)) + 
   theme(legend.position = "none")
-vd_ccdp_mcd <- ggVennDiagram(list("Cc DP" = cc_dp_sig$id, "MCD" = mcd$gene)) + 
+vd_ccdp_mcd <- ggVennDiagram(list("Cc DP" = cc_dp_sig$id, "MCD" = mcd_df$gene)) + 
   scale_fill_gradient(low = "#F6BDC0", high = "#DC1C13") + 
   theme(legend.position = "none")
 vd_bdp_mcd + vd_ccdp_mcd
 ```
 
-These results indicate that MCD is especially amenable to the bead genes as 21 genes overlap between the two methods. Moreover, MCD is slightly more conservative than MAGeCK since we selected fewer genes. While our results show strong overlap, future work for corroborating the efficacy of these methods requires an in-depth look into the selected genes and the role they play in T-cell differentiation.  
+We note that our MCD method has some overlap with genes that MAGeCK selected. However, there is greater overlap with the Bead method than with the Cc method. While our inital results are promising, future work for corroborating the efficacy of these methods requires an in-depth look into the selected genes and the role they play in T cell differentiation.
 
 # EnrichR {#sec:enrichr}
 
@@ -194,10 +318,8 @@ These results indicate that MCD is especially amenable to the bead genes as 21 g
 dir <- getwd()
 bead_genes_DP <- read.table(paste0(dir,"/Test_outputs/Bead_DP_v_plasmid5k/Comparison_BeadDP_to_5k_plasmid_output.gene_summary.txt"), header = T)
 cc_genes_DP <- read.table(paste0(dir,"/Test_outputs/Cc_DP_v_plasmid5k/Comparison_CcDP_to_5k_plasmid_output.gene_summary.txt"), header = T)
-
 bead_genes_SP <- read.table(paste0(dir,"/Test_outputs/Bead_SP_v_plasmid5k/Comparison_BeadSP_to_5k_plasmid_output.gene_summary.txt"), header = T)
 cc_genes_SP <- read.table(paste0(dir,"/Test_outputs/Cc_SP_v_plasmid5k/Comparison_CcSP_to_5k_plasmid_output.gene_summary.txt"), header = T)
-
 bead_genes_DN <- read.table(paste0(dir,"/Test_outputs/Bead_DN_v_plasmid5k/Comparison_BeadDN_to_5k_plasmid_output.gene_summary.txt"), header = T)
 cc_genes_DN <- read.table(paste0(dir,"/Test_outputs/Cc_DN_v_plasmid5k/Comparison_CcDN_to_5k_plasmid_output.gene_summary.txt"), header = T)
 ```
@@ -217,7 +339,6 @@ bead_DP_sig$method <- rep('bead',nrow(bead_DP_sig))
 cc_DP_sig$method <- rep('cc',nrow(cc_DP_sig))
 bead_DP_sig$response <- rep('DP',nrow(bead_DP_sig))
 cc_DP_sig$response <- rep('DP',nrow(cc_DP_sig))
-
 #DN
 bead_DN_sig <- bead_genes_DN %>% 
   arrange(pos.rank) %>%
@@ -231,41 +352,25 @@ bead_DN_sig$method <- rep('bead',nrow(bead_DN_sig))
 cc_DN_sig$method <- rep('cc',nrow(cc_DN_sig))
 bead_DN_sig$response <- rep('DN',nrow(bead_DN_sig))
 cc_DN_sig$response <- rep('DN',nrow(cc_DN_sig))
-
 mageck_inhib <- bind_rows(bead_DP_sig,cc_DP_sig,bead_DN_sig,cc_DN_sig)
-
-mageck_inhib <- distinct(mageck_inhib,id,.keep_all = T) #253
+mageck_inhib <- distinct(mageck_inhib,id,.keep_all = T)
 ```
 
 ```{r}
-#mcd_inhib <- readRDS("~/stat-c245f-hw2/inhibitors/mcd_inhib.rds")
-mcd_inhib <- readRDS("./inhibitors/mcd_inhib.rds")
 mcd_inhib$gene <- rownames(mcd_inhib)
 rownames(mcd_inhib) <- NULL
-
-# mcd_inhib_bead <- mcd_inhib %>%
-#   filter(Bead == "Inhibitor") #38
 ```
 
-
-```{r}
+```{r, include=FALSE}
+# EnrichR for MAGeCK
 mageck_inhib_bead <- mageck_inhib %>%
   filter(method == "bead" & response == "DP") #69
 websiteLive <- TRUE
+#listEnrichrDbs()
 dbs <- c("GO_Molecular_Function_2021", "GO_Cellular_Component_2021", "GO_Biological_Process_2021", "Human_Phenotype_Ontology")
-```
-
-
-```{r}
-# if (websiteLive) {
-#     enriched1 <- enrichr(mageck_inhib_bead$id, dbs)
-#     saveRDS(enriched1, "enriched1.rds")
-# }
-```
-
-
-```{r}
-enriched1 <- readRDS("enriched1.rds")
+if (websiteLive) {
+    enriched1 <- enrichr(mageck_inhib_bead$id, dbs)
+}
 p1 <- if (websiteLive) plotEnrich(enriched1[[1]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "GO_Molecular_Function")
 p2 <- if (websiteLive) plotEnrich(enriched1[[2]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "GO_Cellular_Component")
 p3 <- if (websiteLive) plotEnrich(enriched1[[3]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "GO_Biological_Process")
@@ -273,56 +378,43 @@ p4 <- if (websiteLive) plotEnrich(enriched1[[4]], showTerms = 10, numChar = 40, 
 # p1;p2;p3;p4
 ```
 
-
-```{r, message=FALSE}
-# if (websiteLive) {
-#     enriched2 <- enrichr(mcd_inhib$gene, dbs)
-#     saveRDS(enriched2, "enriched2.rds")
-# }
-```
-
-
-```{r, message=FALSE}
-enriched2 <- readRDS("enriched2.rds")
+```{r, include=FALSE}
+# EnrichR for MCD
+if (websiteLive) {
+    enriched2 <- enrichr(mcd_inhib$gene, dbs)
+}
 p5 <- if (websiteLive) plotEnrich(enriched2[[1]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "GO_Molecular_Function")
 p6 <- if (websiteLive) plotEnrich(enriched2[[2]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "GO_Cellular_Component")
 p7 <- if (websiteLive) plotEnrich(enriched2[[3]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "GO_Biological_Process")
 p8 <- if (websiteLive) plotEnrich(enriched2[[4]], showTerms = 10, numChar = 40, y = "Count", orderBy = "P.value", title = "Human_Phenotype_Ontology")
-
 # p5;p6;p7;p8
 ```
 
+We performed an enrichment analysis of the essential genes predicted by MCD and by MAGeCK (DP genes with a negative p value <  0.05) using `enrichR`, an online gene enrichment tool [@kuleshov2016enrichr]. `enrichR` accepts a list of genes and compares them against existing annotated gene sets. This provides domain knowledge for our genes and allows us to assess whether our genes have biological meaning relative to T cell differentiation. 
 
-We performed an enrichment analysis of the essential genes predicted by MCD and by MAGeCK (DP genes with a negative p.value <  0.05) using `enrichR`, an online gene enrichment tool created by @kuleshov2016enrichr. `enrichR` accepts a list of genes and compares them against existing annotated gene sets. This provides domain knowledge for our genes and allows us to assess whether our genes have biological meaning relative to T-cell differentiation. 
-
-
-As shown in Figure \blue{\ref{fig:enrichr}} below, biological processes seemingly relevant to T cell development appear as significantly enriched for both sets of gene predictions. These processes include T cell receptor signaling and regulation of stem cell differential. 
+As shown in Figure \blue{\ref{fig:enrichr}}, biological processes seemingly relevant to T cell development appear as significantly enriched for both sets of gene predictions. These processes include T cell receptor signaling and regulation of stem cell differentiation. 
 
 Similarly, disease phenotypes relevant to T cell malfunction such as T lymphocytopenia and abnormality of T cells appear at the top of enriched terms for both sets of genes. While some enriched terms for genes predicted by MCD seem less relevant compared to those for MAGeCK, both methods are able to discover the essential genes reasonably well.
 
-
 ```{r enrichr, fig.width=12, fig.height=8, out.width='100%', fig.cap="Biological pathways and human phenotypes of genes selected by MAGeCK (top panels) and MCD (bottom panel)."}
+# Combine graphs
 mageck_inhib_graph <- ggarrange(p3,p4, ncol =2)
 mageck_inhib_graph <- annotate_figure(mageck_inhib_graph, left = text_grob("MAGeCK", rot = 90))
 mcd_inhib_graph <- ggarrange(p7,p8, ncol =2)
 mcd_inhib_graph <- annotate_figure(mcd_inhib_graph, left = text_grob("MCD", rot = 90))
-
 fig <- ggarrange(mageck_inhib_graph,mcd_inhib_graph, nrow = 2)
 fig
 ```
 
+# Inhibitors of T Cell Differentiation
 
+The MCD technique found significant genes by treating them as outliers. We attemped a coarse method to determine whether the genes we discovered using the MCD technique and its associated variations are inhibitors of T cell differentiation or not. We compare the average difference in DN and DP T cell counts with respect to the control. However, since each gene has a different number of guide RNAs assigned to it, we must scale the counts by the number of guide RNAs assigned to each gene. If the average difference of DN counts with the control is larger than that of DP with the control, we label the gene as an inhibitor.
+
+We discover nine genes that are classified as inhibitors by both the Bead and cell co-culture. These genes are `r rownames(both_inhib)`. However, running this list of nine genes or the lists containing genes labeled as significant by the Bead or Cc methods through `enrichR` does not yield results consistent with known pathways for T cell differentiation. We conclude that our coarse method for determining if the genes are inhibitors is inadequate, as there are likely more complicated underlying processes that we are missing with this method that MCD is capturing.
+
+# Discussion
+
+We have derived and tested a novel method for finding genes that are potential T cell inhibitors. Our method yields similar results to prior methods like MAGeCK, but with potentially higher statistical power. Similar to MAGeCK, our method also produces a gene list that is associated with T cell and stem cell differentation. That said, our method needs further investigation to determine its validity, as do the genes in our gene list that do not appear in MAGeCK.
 
 # References
-
-
-
-
-
-
-
-
-
-
-
 
